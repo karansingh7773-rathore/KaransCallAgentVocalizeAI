@@ -16,9 +16,8 @@ COPY agent/requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download model files for VAD and turn detection
+# Pre-download VAD model file for faster startup
 RUN python -c "from livekit.plugins import silero; silero.VAD.load()" || true
-RUN python -c "from livekit.plugins.turn_detector import EOUModel; EOUModel()" || true
 
 # Copy agent code
 COPY agent/ .
