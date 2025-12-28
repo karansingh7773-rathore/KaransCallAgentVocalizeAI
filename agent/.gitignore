@@ -1,0 +1,48 @@
+# Python Virtual Environment
+venv/
+.venv/
+env/
+.env/
+
+# Environment variables
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+build/
+dist/
+eggs/
+*.egg-info/
+*.egg
+.eggs/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# LiveKit Krisp Noise Cancellation model cache
+KMS/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/

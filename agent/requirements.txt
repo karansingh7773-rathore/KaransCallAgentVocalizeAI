@@ -1,0 +1,17 @@
+# LiveKit Voice Agent Dependencies
+# Python 3.10+ required
+
+# Core LiveKit Agents framework with Silero VAD and turn detection
+livekit-agents[silero,turn-detector]~=1.0
+
+# Groq LLM plugin for fast inference
+livekit-plugins-groq~=1.0
+
+# Deepgram plugin for STT and TTS
+livekit-plugins-deepgram~=1.0
+
+# Noise cancellation for AEC (Acoustic Echo Cancellation)
+livekit-plugins-noise-cancellation~=0.2
+
+# Environment variable loading
+python-dotenv~=1.0

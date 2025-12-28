@@ -1,0 +1,7 @@
+{
+  "name": "KaransCall Agent",
+  "description": "A real-time AI voice agent interface featuring live transcription, audio visualization, and responsive design using Gemini Live API.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
