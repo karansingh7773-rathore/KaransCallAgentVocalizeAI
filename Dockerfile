@@ -22,5 +22,8 @@ RUN python -c "from livekit.plugins import silero; silero.VAD.load()" || true
 # Copy agent code
 COPY agent/ .
 
+# Download model files for VAD and turn detector
+RUN python agent.py download-files || true
+
 # Run the agent in production mode
 CMD ["python", "agent.py", "start"]
