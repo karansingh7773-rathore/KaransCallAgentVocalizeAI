@@ -18,7 +18,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Download model files for VAD and turn detection
 RUN python -c "from livekit.plugins import silero; silero.VAD.load()" || true
-RUN python -c "from livekit.plugins.turn_detector import EOUModel; EOUModel()" || true
+
+# Download turn detector model files (MultilingualModel requires languages.json)
+COPY agent.py .
+RUN python agent.py download-files || true
 
 # Copy application code
 COPY . .
