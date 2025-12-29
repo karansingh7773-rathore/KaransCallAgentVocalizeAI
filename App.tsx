@@ -150,7 +150,9 @@ function App() {
                         <AudioWaveform className="text-white" size={20} />
                     </div>
                     <div>
-                        <h1 className="text-3xl text-stone-100 tracking-normal font-heading">Vocalize AI</h1>
+                        <h1 className="text-3xl tracking-normal font-heading">
+                            <span className="text-stone-100">Vocalize</span> <span className="text-rose-500">AI</span>
+                        </h1>
                     </div>
                 </div>
 
@@ -200,19 +202,24 @@ function App() {
                         </div>
 
                         {/* Main Action Button */}
-                        <button
-                            onClick={toggleConnection}
-                            disabled={status === 'connecting'}
-                            className={`px-10 py-5 rounded-full font-semibold text-lg tracking-tight shadow-2xl transition-all transform hover:scale-105 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed ${status === 'connected'
-                                ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-900/40 ring-4 ring-rose-900/20'
-                                : status === 'connecting'
-                                    ? 'bg-amber-600 text-white shadow-amber-900/40 ring-4 ring-amber-900/20'
-                                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/40 ring-4 ring-emerald-900/20'
-                                }`}
-                        >
-                            {status === 'connected' ? <PhoneOff size={24} /> : <Phone size={24} />}
-                            {status === 'connected' ? 'End Interaction' : status === 'connecting' ? 'Connecting...' : 'Start Call'}
-                        </button>
+                        <div className={`rounded-full p-[3px] transition-all transform hover:scale-105 ${status === 'connecting' ? 'opacity-50 cursor-not-allowed' : ''} ${status === 'connected'
+                            ? 'bg-transparent shadow-none'
+                            : 'bg-gradient-to-r from-rose-500 via-indigo-500 to-rose-500 animate-gradient-x shadow-[0_0_40px_rgba(244,63,94,0.4)]'
+                            }`}>
+                            <button
+                                onClick={toggleConnection}
+                                disabled={status === 'connecting'}
+                                className={`px-10 py-5 rounded-full font-semibold text-lg tracking-tight flex items-center gap-3 w-full h-full disabled:opacity-50 disabled:cursor-not-allowed ${status === 'connected'
+                                    ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                                    : status === 'connecting'
+                                        ? 'bg-amber-600 text-white'
+                                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                    }`}
+                            >
+                                {status === 'connected' ? <PhoneOff size={24} /> : <Phone size={24} />}
+                                {status === 'connected' ? 'End Interaction' : status === 'connecting' ? 'Connecting...' : 'Start Call'}
+                            </button>
+                        </div>
 
                         {/* Simplified Status Text */}
                         <div className="text-xs text-stone-500 font-medium uppercase tracking-widest">
@@ -280,7 +287,10 @@ function App() {
                                     <button
                                         type="submit"
                                         disabled={!tempName.trim()}
-                                        className="w-full py-3 rounded-lg bg-white/10 hover:bg-white/15 text-stone-300 font-medium transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                                        className={`w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed text-sm ${tempName.trim()
+                                                ? 'bg-stone-100 hover:bg-white text-stone-900 shadow-lg shadow-white/10'
+                                                : 'bg-white/10 hover:bg-white/15 text-stone-300'
+                                            }`}
                                     >
                                         Continue
                                         <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />

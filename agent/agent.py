@@ -139,7 +139,7 @@ async def entrypoint(ctx: agents.JobContext):
         
         # Text-to-Speech: Deepgram for natural voice
         tts=deepgram.TTS(
-            model="aura-asteria-en",  # Female voice, natural sounding
+            model="aura-2-luna-en",  # Female voice, natural sounding
         ),
         
         # Voice Activity Detection: Silero for accurate speech detection
@@ -148,7 +148,7 @@ async def entrypoint(ctx: agents.JobContext):
             min_silence_duration=0.3,
         ),
         
-        # Turn detection for natural conversation flow
+        # Turn detection for natural conversation flow (multilingual support)
         turn_detection=MultilingualModel(),
     )
     
