@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { AudioWaveform, Settings, Phone, PhoneOff, Github, X, Save, User, Briefcase, ArrowRight } from 'lucide-react';
+import { Settings, Phone, PhoneOff, Github, X, Save, User, Briefcase, ArrowRight } from 'lucide-react';
+import { DiYii } from "react-icons/di";
 import { useLiveKitAgent } from './hooks/useLiveKitAgent';
 import AudioVisualizer from './components/AudioVisualizer';
 import Transcript from './components/Transcript';
@@ -146,8 +147,8 @@ function App() {
             {/* Header */}
             <header className="relative z-20 flex justify-between items-center py-4 border-b border-stone-800/50">
                 <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 bg-gradient-to-br from-rose-500 to-rose-700 rounded-xl flex items-center justify-center shadow-lg shadow-rose-900/20">
-                        <AudioWaveform className="text-white" size={20} />
+                    <div className="h-10 w-10 bg-rose-500 rounded-xl flex items-center justify-center shadow-lg shadow-rose-900/20">
+                        <DiYii className="text-stone-950" size={28} />
                     </div>
                     <div>
                         <h1 className="text-3xl tracking-normal font-heading">
@@ -288,8 +289,8 @@ function App() {
                                         type="submit"
                                         disabled={!tempName.trim()}
                                         className={`w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed text-sm ${tempName.trim()
-                                                ? 'bg-stone-100 hover:bg-white text-stone-900 shadow-lg shadow-white/10'
-                                                : 'bg-white/10 hover:bg-white/15 text-stone-300'
+                                            ? 'bg-stone-100 hover:bg-white text-stone-900 shadow-lg shadow-white/10'
+                                            : 'bg-white/10 hover:bg-white/15 text-stone-300'
                                             }`}
                                     >
                                         Continue
