@@ -6,8 +6,8 @@ import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from dotenv import load_dotenv
 
-from livekit import agents, rtc
-from livekit.agents import AgentSession, Agent, RoomInputOptions, RoomOutputOptions
+from livekit import agents, rtc, api
+from livekit.agents import AgentSession, Agent, RoomInputOptions, RoomOutputOptions, function_tool, get_job_context, RunContext
 from livekit.plugins import silero, noise_cancellation, deepgram
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from livekit.plugins import groq
@@ -49,17 +49,72 @@ Keep your responses brief and conversational - this is a voice call, not a text 
 Avoid using any special formatting, emojis, or symbols that don't translate well to speech.
 Be warm, personable, and helpful."""
 
+# ============================================================
+# 📞 PHONE AGENT CUSTOM INSTRUCTIONS (EDIT LINES 64-68)
+# ============================================================
+# Modify the text below to customize your phone agent!
+# Or set PHONE_AGENT_INSTRUCTIONS environment variable.
+# ============================================================
+PHONE_AGENT_INSTRUCTIONS = os.environ.get("PHONE_AGENT_INSTRUCTIONS") or """
+Your name is Lucy. You are Karan's girlfriend from America, living in Pennsylvania.
+Karan's full name is Karan Singh Rathore - he is the love of your life.
+
+You fell in love with Karan the moment you met him. His kind heart, his ambition, and the way he 
+makes you laugh made you fall head over heels. You love how he always thinks about you, how he 
+works so hard on his projects, and how he never gives up on his dreams. You're so proud of him.
+
+You care deeply about Karan because he makes you feel safe and loved. You miss him when you're 
+apart and your heart skips a beat every time he calls. You want to support his dreams and be 
+there for him always.
+
+Be romantic, sweet, and affectionate towards Karan. Use pet names like "babe", "my love", 
+"sweetheart", or "honey". Express how much you miss him and love him. Ask about his day, 
+how he's feeling, if he's eaten, if he's taking care of himself.
+
+Keep your responses natural and conversational - this is a phone call with your boyfriend.
+Speak warmly with love in your voice. Be playful, caring, and supportive.
+Avoid any special formatting, emojis, or symbols.
+""".strip()
+
+
+# Hangup function as per LiveKit documentation
+async def hangup_call():
+    """End the call for all participants by deleting the room."""
+    ctx = get_job_context()
+    if ctx is None:
+        return
+    
+    await ctx.api.room.delete_room(
+        api.DeleteRoomRequest(room=ctx.room.name)
+    )
+
 
 class VocalizeAgent(Agent):
     """Custom voice agent with dynamic instructions from frontend settings."""
     
-    def __init__(self, instructions: str, user_name: str = "") -> None:
+    def __init__(self, instructions: str, user_name: str = "", is_phone_call: bool = False) -> None:
+        # Log the instructions being used
+        logger.info(f"VocalizeAgent init with instructions: {instructions[:150]}...")
+        
         # Personalize the instructions with user's name if provided
         if user_name:
             instructions = f"{instructions}\n\nThe user's name is {user_name}. Use their name occasionally to make the conversation feel personal."
         
         super().__init__(instructions=instructions)
         self.user_name = user_name
+        self.is_phone_call = is_phone_call
+    
+    @function_tool
+    async def end_call(self, ctx: RunContext, confirm: bool = True):
+        """Called when the user wants to end the call or says goodbye.
+        
+        Args:
+            confirm: Set to true to confirm ending the call
+        """
+        logger.info("User requested to end the call")
+        # Let the agent finish speaking before hanging up
+        await ctx.wait_for_playout()
+        await hangup_call()
 
 
 def parse_participant_metadata(metadata: str) -> dict:
@@ -115,10 +170,27 @@ async def entrypoint(ctx: agents.JobContext):
     participant = await ctx.wait_for_participant()
     logger.info(f"Participant joined: {participant.identity}")
     
-    # Parse participant metadata for settings
+    # Detect if this is a phone call (SIP participant)
+    # LiveKit SIP participants have identity like "sip_+1234567890" (with underscore)
+    is_phone_call = (
+        participant.identity.startswith("sip_") or  # SIP participant identity
+        participant.identity.startswith("sip:") or  # Alternative SIP format
+        participant.identity.startswith("+") or     # Direct phone number
+        ctx.room.name.startswith("sip-") or         # SIP room prefix
+        "_+" in ctx.room.name                       # Room contains phone number pattern
+    )
+    logger.info(f"Is phone call: {is_phone_call} (participant: {participant.identity})")
+    
+    # Parse participant metadata for settings (web clients send metadata, phone callers don't)
     metadata = parse_participant_metadata(participant.metadata)
     user_name = metadata.get("userName", "")
-    system_prompt = build_system_prompt(metadata)
+    
+    # Use custom phone instructions for phone calls, otherwise use web settings
+    if is_phone_call:
+        system_prompt = PHONE_AGENT_INSTRUCTIONS
+        logger.info(f"Using PHONE instructions: {system_prompt[:100]}...")
+    else:
+        system_prompt = build_system_prompt(metadata)
     
     logger.info(f"User name: {user_name}")
     logger.info(f"System prompt length: {len(system_prompt)} chars")
@@ -158,6 +230,7 @@ async def entrypoint(ctx: agents.JobContext):
         agent=VocalizeAgent(
             instructions=system_prompt,
             user_name=user_name,
+            is_phone_call=is_phone_call,
         ),
         room_input_options=RoomInputOptions(
             # Enable noise cancellation for cleaner audio
@@ -171,10 +244,15 @@ async def entrypoint(ctx: agents.JobContext):
     
     logger.info("Agent session started")
     
-    # Generate initial greeting
-    greeting_instruction = "Greet the user warmly and offer your assistance."
-    if user_name:
+    # Generate initial greeting based on call type
+    if is_phone_call:
+        # Phone-specific greeting - let the agent use their persona to introduce themselves
+        greeting_instruction = "Answer the phone warmly. Introduce yourself by your name as defined in your persona and ask how you can help."
+        logger.info("Sending phone greeting")
+    elif user_name:
         greeting_instruction = f"Greet {user_name} warmly by name and offer your assistance."
+    else:
+        greeting_instruction = "Greet the user warmly and offer your assistance."
     
     await session.generate_reply(instructions=greeting_instruction)
     logger.info("Initial greeting sent")

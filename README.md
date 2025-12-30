@@ -1,4 +1,4 @@
-# Vocalize AI - Voice Call Agent
+# Karan's Call Agent
 
 A real-time AI voice call agent built with **LiveKit Cloud**, **Groq LLM**, and **Deepgram** for speech processing. This application provides a seamless voice conversation experience with an intelligent AI agent.
 
