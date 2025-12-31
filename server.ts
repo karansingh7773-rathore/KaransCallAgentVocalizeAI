@@ -9,9 +9,60 @@ import express from 'express';
 import cors from 'cors';
 import { config } from 'dotenv';
 import { AccessToken } from 'livekit-server-sdk';
+import { google } from 'googleapis';
 
 // Load environment variables
 config({ path: '.env.local' });
+
+// Google Sheets helper function
+async function appendUserToSheet(userName: string): Promise<boolean> {
+    try {
+        const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+        const clientEmail = process.env.GOOGLE_SHEETS_CLIENT_EMAIL;
+        // Fix: Handle both escaped \\n and literal \n in the private key
+        let privateKey = process.env.GOOGLE_SHEETS_PRIVATE_KEY;
+        if (privateKey) {
+            // Replace escaped newlines with actual newlines
+            privateKey = privateKey.replace(/\\n/g, '\n');
+        }
+
+        console.log('📊 Sheets config:', {
+            spreadsheetId: spreadsheetId ? `${spreadsheetId.substring(0, 10)}...` : 'MISSING',
+            clientEmail: clientEmail || 'MISSING',
+            privateKey: privateKey ? `${privateKey.substring(0, 30)}...` : 'MISSING',
+        });
+
+        if (!spreadsheetId || !clientEmail || !privateKey) {
+            console.warn('Google Sheets credentials not configured - skipping user logging');
+            return false;
+        }
+
+        const auth = new google.auth.JWT({
+            email: clientEmail,
+            key: privateKey,
+            scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+        });
+
+        const sheets = google.sheets({ version: 'v4', auth });
+
+        const timestamp = new Date().toISOString();
+
+        await sheets.spreadsheets.values.append({
+            spreadsheetId,
+            range: 'Sheet1!A:B', // Columns A (timestamp) and B (username)
+            valueInputOption: 'USER_ENTERED',
+            requestBody: {
+                values: [[timestamp, userName]],
+            },
+        });
+
+        console.log(`📊 User logged to spreadsheet: ${userName}`);
+        return true;
+    } catch (error: any) {
+        console.error('Failed to log user to spreadsheet:', error?.message || error);
+        return false;
+    }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -93,13 +144,34 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Log user to Google Sheets endpoint
+app.post('/api/sheets', async (req, res) => {
+    try {
+        const { userName } = req.body;
+
+        if (!userName) {
+            return res.status(400).json({ error: 'userName is required' });
+        }
+
+        const success = await appendUserToSheet(userName);
+
+        res.json({
+            success,
+            message: success ? 'User logged to spreadsheet' : 'Spreadsheet not configured'
+        });
+    } catch (error) {
+        console.error('Sheets endpoint error:', error);
+        res.status(500).json({ error: 'Failed to log user' });
+    }
+});
+
 // Start server
 app.listen(PORT, () => {
     console.log(`\n🚀 Development API server running on http://localhost:${PORT}`);
     console.log(`   Token endpoint: http://localhost:${PORT}/api/token`);
-    console.log(`\n📝 Make sure to set these environment variables in .env.local:`);
-    console.log(`   - LIVEKIT_API_KEY`);
-    console.log(`   - LIVEKIT_API_SECRET`);
-    console.log(`   - LIVEKIT_URL`);
+    console.log(`   Sheets endpoint: http://localhost:${PORT}/api/sheets`);
+    console.log(`\n📝 Environment variables in .env.local:`);
+    console.log(`   - LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL`);
+    console.log(`   - GOOGLE_SHEETS_SPREADSHEET_ID, GOOGLE_SHEETS_CLIENT_EMAIL, GOOGLE_SHEETS_PRIVATE_KEY`);
     console.log(`\n💡 Run 'npm run dev' in another terminal to start the frontend\n`);
 });

@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "googleapis": "^169.0.0",
     "livekit-client": "^2.9.0",
     "livekit-server-sdk": "^2.9.0",
     "lucide-react": "^0.562.0",

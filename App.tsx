@@ -93,9 +93,17 @@ function App() {
     const handleNameSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (tempName.trim()) {
-            setUserName(tempName.trim());
-            localStorage.setItem('vocalize_username', tempName.trim());
+            const name = tempName.trim();
+            setUserName(name);
+            localStorage.setItem('vocalize_username', name);
             setIsNameModalOpen(false);
+
+            // Log user to Google Sheets (fire-and-forget, don't block UI)
+            fetch('/api/sheets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userName: name }),
+            }).catch(() => { }); // Silently ignore errors
         }
     };
 
