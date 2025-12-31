@@ -91,14 +91,28 @@ class VocalizeAgent(Agent):
         self.is_phone_call = is_phone_call
     
     @function_tool
-    async def end_call(self, ctx: RunContext, confirm: bool = True):
-        """Called when the user wants to end the call or says goodbye.
+    async def end_call(self, ctx: RunContext, confirm: bool = False):
+        """ONLY use this to end the phone call when the user EXPLICITLY says goodbye.
+        
+        CRITICAL - DO NOT CALL THIS FUNCTION UNLESS:
+        - User says "goodbye", "bye", "bye bye", "talk to you later", "gotta go"
+        - User explicitly says "hang up", "end the call", or "disconnect"
+        
+        DO NOT call this function:
+        - During normal conversation
+        - When there is silence or a pause
+        - When the user finishes discussing a topic
+        - When you are unsure what the user wants
+        - At any point unless the user clearly wants to end the call
         
         Args:
-            confirm: Set to true to confirm ending the call
+            confirm: MUST be True to actually end the call. Default is False for safety.
         """
-        logger.info("User requested to end the call")
-        # Let the agent finish speaking before hanging up
+        if not confirm:
+            logger.info("end_call called but confirm=False, ignoring")
+            return
+        
+        logger.info("User explicitly said goodbye - ending call")
         await ctx.wait_for_playout()
         await hangup_call()
 
