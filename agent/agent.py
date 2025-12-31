@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import threading
+from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from dotenv import load_dotenv
 
@@ -42,6 +43,45 @@ def start_health_server():
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vocalize-agent")
+
+
+# ============================================================
+# 📊 SESSION LOGGING - Easy to spot in Railway logs
+# ============================================================
+def log_session_start(room_name: str, user_name: str, participant_id: str, is_phone: bool = False):
+    """Log a visually distinct session start banner."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    session_type = "PHONE CALL" if is_phone else "WEBRTC"
+    
+    logger.info("")
+    logger.info("=" * 60)
+    logger.info(f"  NEW {session_type} SESSION")
+    logger.info(f"  Time: {timestamp}")
+    logger.info(f"  User: {user_name or 'Unknown'}")
+    logger.info(f"  Room: {room_name}")
+    logger.info(f"  ID:   {participant_id}")
+    logger.info("=" * 60)
+    logger.info("")
+
+
+def log_session_end(room_name: str, user_name: str, duration_seconds: float):
+    """Log a visually distinct session end banner."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Format duration
+    minutes = int(duration_seconds // 60)
+    seconds = int(duration_seconds % 60)
+    duration_str = f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
+    
+    logger.info("")
+    logger.info("-" * 60)
+    logger.info(f"  SESSION ENDED")
+    logger.info(f"  Time: {timestamp}")
+    logger.info(f"  User: {user_name or 'Unknown'}")
+    logger.info(f"  Room: {room_name}")
+    logger.info(f"  Duration: {duration_str}")
+    logger.info("-" * 60)
+    logger.info("")
 
 # Default system prompt when no custom persona is provided
 DEFAULT_SYSTEM_PROMPT = """You are Vocalize, a helpful, professional AI voice assistant. 
@@ -185,6 +225,17 @@ async def entrypoint(ctx: agents.JobContext):
     metadata = parse_participant_metadata(participant.metadata)
     user_name = metadata.get("userName", "")
     
+    # Track session start time for duration calculation
+    session_start_time = datetime.now()
+    
+    # Log session start with visual banner (easy to spot in Railway logs)
+    log_session_start(
+        room_name=ctx.room.name,
+        user_name=user_name,
+        participant_id=participant.identity,
+        is_phone=is_phone_call
+    )
+    
     # Use custom phone instructions for phone calls, otherwise use web settings
     if is_phone_call:
         system_prompt = PHONE_AGENT_INSTRUCTIONS
@@ -192,7 +243,6 @@ async def entrypoint(ctx: agents.JobContext):
     else:
         system_prompt = build_system_prompt(metadata)
     
-    logger.info(f"User name: {user_name}")
     logger.info(f"System prompt length: {len(system_prompt)} chars")
     
     # Create the agent session with all plugins
@@ -256,6 +306,17 @@ async def entrypoint(ctx: agents.JobContext):
     
     await session.generate_reply(instructions=greeting_instruction)
     logger.info("Initial greeting sent")
+    
+    # Register handler to log session end when participant disconnects
+    @ctx.room.on("participant_disconnected")
+    def on_participant_disconnected(disconnected_participant):
+        if disconnected_participant.identity == participant.identity:
+            duration = (datetime.now() - session_start_time).total_seconds()
+            log_session_end(
+                room_name=ctx.room.name,
+                user_name=user_name,
+                duration_seconds=duration
+            )
 
 
 if __name__ == "__main__":

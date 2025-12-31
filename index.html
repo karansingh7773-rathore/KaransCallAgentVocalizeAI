@@ -1,39 +1,49 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vocalize AI - Voice Agent</title>
-    <meta name="description" content="AI Voice Agent powered by LiveKit and Groq. Real-time voice conversations with intelligent AI.">
-    
+    <meta name="description"
+        content="AI Voice Agent powered by LiveKit and Groq. Real-time voice conversations with intelligent AI.">
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Satisfy&display=swap" rel="stylesheet">
-    
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Satisfy&display=swap"
+        rel="stylesheet">
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <style>
         :root {
             --font-heading: 'Satisfy', cursive;
             --font-body: 'Manrope', sans-serif;
         }
+
         body {
             font-family: var(--font-body);
             background-color: #1c1917;
         }
-        h1, h2, h3, .font-heading {
+
+        h1,
+        h2,
+        h3,
+        .font-heading {
             font-family: var(--font-heading);
         }
-        
+
         /* Custom Scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
         }
+
         ::-webkit-scrollbar-track {
             background: #292524;
         }
+
         ::-webkit-scrollbar-thumb {
             background: #44403c;
             border-radius: 3px;
@@ -44,6 +54,7 @@
             position: relative;
             overflow: hidden;
         }
+
         .beam-border::before {
             content: '';
             position: absolute;
@@ -58,16 +69,24 @@
             transition: opacity 0.3s;
             z-index: 0;
         }
+
         .beam-border:hover::before {
             opacity: 1;
         }
+
         .beam-border span {
             position: relative;
             z-index: 1;
         }
+
         @keyframes beam-spin {
-            from { transform: translate(-50%, -50%) rotate(0deg); }
-            to { transform: translate(-50%, -50%) rotate(360deg); }
+            from {
+                transform: translate(-50%, -50%) rotate(0deg);
+            }
+
+            to {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
         }
 
         /* Text Clip Slide Down (Legacy) */
@@ -78,13 +97,17 @@
             padding-bottom: 0.15em;
             margin-bottom: -0.15em;
         }
+
         .letter-animate {
             display: inline-block;
             transform: translateY(-105%);
             animation: slideDown 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
+
         @keyframes slideDown {
-            to { transform: translateY(0); }
+            to {
+                transform: translateY(0);
+            }
         }
 
         /* Smoke Blur Animation */
@@ -95,17 +118,19 @@
             transform: translateX(-20px) scale(1.1);
             animation: smokeIn 1.2s ease-out forwards;
         }
-        
+
         @keyframes smokeIn {
             0% {
                 opacity: 0;
                 filter: blur(12px);
                 transform: translateX(-20px) scale(1.1);
             }
+
             40% {
                 opacity: 0.6;
                 filter: blur(4px);
             }
+
             100% {
                 opacity: 1;
                 filter: blur(0);
@@ -113,14 +138,19 @@
             }
         }
 
-         /* Intro Scale Animation */
-         .animate-scale-in {
-            animation: scaleIn 0.8s ease-out forwards;
+        /* Intro Scale Animation */
+        /* Duration: Change "0.3s" to adjust speed (e.g., 0.2s = faster, 0.5s = slower) */
+        .animate-scale-in {
+            animation: scaleIn 0.3s ease-out forwards;
             opacity: 0;
             transform: scale(0.95);
         }
+
         @keyframes scaleIn {
-            to { opacity: 1; transform: scale(1); }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
         }
 
         /* Moving Gradient Animation */
@@ -128,27 +158,40 @@
             background-size: 200% 100%;
             animation: gradient-x 3s ease infinite;
         }
+
         @keyframes gradient-x {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
         }
 
         /* Custom scrollbar for settings */
         .custom-scrollbar::-webkit-scrollbar {
             width: 4px;
         }
+
         .custom-scrollbar::-webkit-scrollbar-track {
             background: transparent;
         }
+
         .custom-scrollbar::-webkit-scrollbar-thumb {
             background: #44403c;
             border-radius: 2px;
         }
     </style>
 </head>
+
 <body class="bg-stone-900 text-stone-300 min-h-screen overflow-x-hidden selection:bg-rose-500/30">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
 </body>
+
 </html>
