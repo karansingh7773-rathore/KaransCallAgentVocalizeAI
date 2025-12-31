@@ -16,12 +16,8 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download model files for VAD and turn detection
+# Download model files for VAD
 RUN python -c "from livekit.plugins import silero; silero.VAD.load()" || true
-
-# Download turn detector model files (MultilingualModel requires languages.json)
-COPY agent.py .
-RUN python agent.py download-files || true
 
 # Copy application code
 COPY . .
