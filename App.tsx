@@ -261,14 +261,27 @@ function App() {
 
             {/* Name Modal Layer */}
             {isNameModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-scale-in px-4">
+                <div className="fixed inset-0 z-50 flex items-center justify-center animate-scale-in px-4">
+                    {/* Background Video - plays behind the box */}
+                    <video
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="absolute inset-0 w-full h-full object-cover"
+                        style={{ filter: 'blur(8px)' }}
+                    >
+                        <source src="/rose1.mp4" type="video/mp4" />
+                    </video>
+                    {/* Dark overlay on top of video */}
+                    <div className="absolute inset-0 bg-black/60"></div>
                     {/* 
             Fix for Edges: 
             Use a wrapper div that has the gradient background.
             Adjusted dimensions and padding for a more compact, "short" look as requested.
           */}
-                    <div className="w-full max-w-[340px] rounded-[28px] p-[2px] bg-gradient-to-r from-rose-500 via-fuchsia-500 to-rose-500 animate-gradient-x shadow-[0_0_40px_rgba(244,63,94,0.4)]">
-                        <div className="w-full bg-[#1a1a1a] rounded-[26px] overflow-hidden relative">
+                    <div className="relative z-10 w-full max-w-[340px] rounded-[28px] p-[2px] bg-gradient-to-r from-rose-500 via-fuchsia-500 to-rose-500 animate-gradient-x shadow-[0_0_40px_rgba(244,63,94,0.4)]">
+                        <div className="w-full bg-[#1a1a1a] rounded-[26px] overflow-hidden">
                             <div className="p-8 flex flex-col items-center space-y-6"> {/* Reduced padding and vertical spacing */}
                                 {/* Icon */}
                                 <div className="w-10 h-10 rounded-xl bg-stone-800/50 flex items-center justify-center border border-stone-700/50">
