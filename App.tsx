@@ -24,6 +24,31 @@ function App() {
     const [tempPersona, setTempPersona] = useState(agentPersona);
     const [tempBusinessDetails, setTempBusinessDetails] = useState(businessDetails);
 
+    // Audio refs for sound effects
+    const startCallAudioRef = useRef<HTMLAudioElement | null>(null);
+    const endCallAudioRef = useRef<HTMLAudioElement | null>(null);
+
+    // Initialize audio elements on mount
+    useEffect(() => {
+        startCallAudioRef.current = new Audio('/start-call.mp3');
+        endCallAudioRef.current = new Audio('/end-call.mp3');
+
+        // Preload the audio files
+        startCallAudioRef.current.preload = 'auto';
+        endCallAudioRef.current.preload = 'auto';
+    }, []);
+
+    // Play sound effect helper
+    const playSound = (type: 'start' | 'end') => {
+        const audio = type === 'start' ? startCallAudioRef.current : endCallAudioRef.current;
+        if (audio) {
+            audio.currentTime = 0; // Reset to start
+            audio.play().catch((err) => {
+                console.warn('Sound effect failed to play:', err);
+            });
+        }
+    };
+
     // Load saved settings on mount
     useEffect(() => {
         // Load user name
@@ -65,8 +90,10 @@ function App() {
 
     const toggleConnection = () => {
         if (status === 'connected' || status === 'connecting') {
+            playSound('end');
             disconnect();
         } else {
+            playSound('start');
             connect();
         }
     };
