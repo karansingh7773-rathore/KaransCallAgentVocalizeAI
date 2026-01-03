@@ -31,7 +31,7 @@ function App() {
     // Initialize audio elements on mount
     useEffect(() => {
         startCallAudioRef.current = new Audio('/start-call.mp3');
-        endCallAudioRef.current = new Audio('/end-call.mp3');
+        endCallAudioRef.current = new Audio('/start-call.mp3');
 
         // Preload the audio files
         startCallAudioRef.current.preload = 'auto';
