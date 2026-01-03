@@ -1,0 +1,24 @@
+{
+    "name": "Vocalize AI",
+    "short_name": "Vocalize AI",
+    "description": "AI Voice Agent powered by LiveKit and Groq. Real-time voice conversations with intelligent AI.",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#f43f5e",
+    "theme_color": "#f43f5e",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "/icon4 (1).png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icon4.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}
