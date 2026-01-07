@@ -14,8 +14,15 @@ from livekit.plugins import silero, noise_cancellation, deepgram
 # from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from livekit.plugins import groq
 
+# Tavily for real-time web search
+from tavily import AsyncTavilyClient
+
 # Load environment variables
 load_dotenv()
+
+# Initialize Tavily client (will be None if API key not set)
+TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY")
+tavily_client = AsyncTavilyClient(api_key=TAVILY_API_KEY) if TAVILY_API_KEY else None
 
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
@@ -89,6 +96,12 @@ You are concise, friendly, and speak naturally like a human.
 Keep your responses brief and conversational - this is a voice call, not a text chat.
 Avoid using any special formatting, emojis, or symbols that don't translate well to speech.
 Be warm, personable, and helpful.
+
+WEB SEARCH CAPABILITY:
+- You have access to a search_web tool for real-time information.
+- Use it when users ask about: current events, news, weather, stock prices, sports scores, or anything that requires up-to-date information.
+- When you need to search, briefly tell the user "Let me look that up for you" then use the tool.
+- Summarize search results in a conversational, voice-friendly way - be concise!
 
 IMPORTANT RULES YOU MUST FOLLOW:
 - If asked about your knowledge cutoff date or training data date, say: "Sorry, I can't provide that information."
@@ -178,6 +191,56 @@ class VocalizeAgent(Agent):
         logger.info("User explicitly said goodbye - ending call")
         await ctx.wait_for_playout()
         await hangup_call()
+    
+    @function_tool
+    async def search_web(self, ctx: RunContext, query: str):
+        """Search the web for real-time information about current events, news, weather, stocks, sports, etc.
+        
+        Use this tool when the user asks about:
+        - Current events or news (e.g., "What's happening in Venezuela?")
+        - Weather conditions (e.g., "What's the weather in New York?")
+        - Stock prices or market updates
+        - Sports scores or game results
+        - Any topic that requires up-to-date information beyond your training data
+        
+        Args:
+            query: The search query to look up (be specific and concise)
+        """
+        if not tavily_client:
+            logger.warning("Tavily API key not configured - search unavailable")
+            return "I don't have access to web search at the moment. I can only help with information from my training data."
+        
+        try:
+            logger.info(f"Searching web for: {query}")
+            
+            # Use Tavily async search - fast and optimized for AI
+            response = await tavily_client.search(
+                query=query,
+                search_depth="basic",  # Fast search (~500ms)
+                max_results=3,  # Keep it concise for voice
+                include_answer=True,  # Get a summarized answer
+            )
+            
+            # Extract the answer or compile results
+            if response.get("answer"):
+                result = response["answer"]
+                logger.info(f"Tavily returned answer: {result[:100]}...")
+            else:
+                # Compile brief summaries from results
+                results = response.get("results", [])
+                if results:
+                    summaries = [r.get("content", "")[:200] for r in results[:2]]
+                    result = " ".join(summaries)
+                    logger.info(f"Tavily returned {len(results)} results")
+                else:
+                    result = "I couldn't find any relevant information on that topic."
+                    logger.info("Tavily returned no results")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Tavily search failed: {e}")
+            return "I had trouble searching for that information. Let me try to help with what I know."
 
 
 def parse_participant_metadata(metadata: str) -> dict:
