@@ -173,6 +173,7 @@ export function useLiveKitAgent({
       });
 
       // LIVE Transcription - word by word
+      // Text persists until the OTHER speaker starts talking
       room.on(RoomEvent.TranscriptionReceived, (segments: TranscriptionSegment[], participant?: Participant) => {
         if (!segments?.length) return;
 
@@ -182,7 +183,7 @@ export function useLiveKitAgent({
           const text = seg.text?.trim();
           if (!text) continue;
 
-          // Update live text
+          // Update live text - only clear the OTHER speaker's text, keep current speaker's text
           if (isAgent) {
             currentTurnRef.current.output = text;
             currentTurnRef.current.input = ''; // Clear user text when agent speaks
@@ -192,7 +193,8 @@ export function useLiveKitAgent({
           }
           setCurrentTurn({ ...currentTurnRef.current });
 
-          // On final, add to history and clear
+          // On final, add to history but DO NOT clear currentTurn
+          // The text will persist until the other speaker starts talking
           if (seg.final) {
             const key = `${isAgent ? 'a' : 'u'}-${seg.id}`;
             if (!processedRef.current.segments.has(key)) {
@@ -205,9 +207,8 @@ export function useLiveKitAgent({
                 isComplete: true,
               }]);
 
-              // Always clear both and set to null after final
-              currentTurnRef.current = { input: '', output: '' };
-              setCurrentTurn(null);
+              // DON'T clear currentTurn here - let the text persist
+              // It will be replaced when the other speaker starts talking
             }
           }
         }
