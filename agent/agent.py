@@ -194,21 +194,14 @@ class VocalizeAgent(Agent):
     
     @function_tool
     async def search_web(self, ctx: RunContext, query: str):
-        """Search the web for real-time information about current events, news, weather, stocks, sports, etc.
-        
-        Use this tool when the user asks about:
-        - Current events or news (e.g., "What's happening in Venezuela?")
-        - Weather conditions (e.g., "What's the weather in New York?")
-        - Stock prices or market updates
-        - Sports scores or game results
-        - Any topic that requires up-to-date information beyond your training data
+        """Search the web for current news, weather, sports scores, stock prices, or any real-time information.
         
         Args:
-            query: The search query to look up (be specific and concise)
+            query: What to search for
         """
         if not tavily_client:
             logger.warning("Tavily API key not configured - search unavailable")
-            return "I don't have access to web search at the moment. I can only help with information from my training data."
+            return "Web search is not available right now."
         
         try:
             logger.info(f"Searching web for: {query}")
@@ -216,9 +209,9 @@ class VocalizeAgent(Agent):
             # Use Tavily async search - fast and optimized for AI
             response = await tavily_client.search(
                 query=query,
-                search_depth="basic",  # Fast search (~500ms)
-                max_results=3,  # Keep it concise for voice
-                include_answer=True,  # Get a summarized answer
+                search_depth="basic",
+                max_results=3,
+                include_answer=True,
             )
             
             # Extract the answer or compile results
@@ -226,21 +219,20 @@ class VocalizeAgent(Agent):
                 result = response["answer"]
                 logger.info(f"Tavily returned answer: {result[:100]}...")
             else:
-                # Compile brief summaries from results
                 results = response.get("results", [])
                 if results:
                     summaries = [r.get("content", "")[:200] for r in results[:2]]
                     result = " ".join(summaries)
                     logger.info(f"Tavily returned {len(results)} results")
                 else:
-                    result = "I couldn't find any relevant information on that topic."
+                    result = "No results found for that query."
                     logger.info("Tavily returned no results")
             
             return result
             
         except Exception as e:
             logger.error(f"Tavily search failed: {e}")
-            return "I had trouble searching for that information. Let me try to help with what I know."
+            return "I couldn't complete the search right now."
 
 
 def parse_participant_metadata(metadata: str) -> dict:
