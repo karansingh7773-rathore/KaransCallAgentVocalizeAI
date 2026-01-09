@@ -17,12 +17,20 @@ from livekit.plugins import groq
 # Tavily for real-time web search
 from tavily import AsyncTavilyClient
 
+# Notion for conversation logging
+from notion_client import Client as NotionClient
+
 # Load environment variables
 load_dotenv()
 
 # Initialize Tavily client (will be None if API key not set)
 TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY")
 tavily_client = AsyncTavilyClient(api_key=TAVILY_API_KEY) if TAVILY_API_KEY else None
+
+# Initialize Notion client (will be None if credentials not set)
+NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
+NOTION_DATABASE_ID = os.environ.get("NOTION_DATABASE_ID")
+notion_client = NotionClient(auth=NOTION_TOKEN) if NOTION_TOKEN else None
 
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
@@ -90,6 +98,134 @@ def log_session_end(room_name: str, user_name: str, duration_seconds: float):
     logger.info("-" * 60)
     logger.info("")
 
+
+# ============================================================
+# 📝 NOTION CONVERSATION LOGGER
+# ============================================================
+class ConversationTracker:
+    """Tracks conversation messages for later saving to Notion."""
+    
+    def __init__(self, user_name: str, is_phone_call: bool = False):
+        self.user_name = user_name
+        self.is_phone_call = is_phone_call
+        self.messages: list[dict] = []
+        self.start_time = datetime.now()
+    
+    def add_user_message(self, text: str):
+        """Add a user message to the transcript."""
+        self.messages.append({
+            "speaker": "User",
+            "text": text,
+            "timestamp": datetime.now().strftime("%H:%M:%S")
+        })
+    
+    def add_agent_message(self, text: str):
+        """Add an agent message to the transcript."""
+        self.messages.append({
+            "speaker": "Agent",
+            "text": text,
+            "timestamp": datetime.now().strftime("%H:%M:%S")
+        })
+    
+    def get_duration_str(self) -> str:
+        """Get formatted duration string."""
+        duration = (datetime.now() - self.start_time).total_seconds()
+        minutes = int(duration // 60)
+        seconds = int(duration % 60)
+        return f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
+    
+    def format_transcript(self) -> str:
+        """Format the conversation as a readable transcript."""
+        lines = []
+        for msg in self.messages:
+            lines.append(f"[{msg['speaker']}] {msg['text']}")
+        return "\n\n".join(lines)
+
+
+def save_to_notion(tracker: ConversationTracker):
+    """Save conversation to Notion database."""
+    if not notion_client or not NOTION_DATABASE_ID:
+        logger.warning("Notion not configured - skipping conversation save")
+        return
+    
+    try:
+        # Build page properties
+        call_type = "Phone Call" if tracker.is_phone_call else "WebRTC"
+        page_title = tracker.user_name or "Unknown Caller"
+        
+        # Create page content blocks
+        blocks = [
+            {
+                "object": "block",
+                "type": "heading_2",
+                "heading_2": {
+                    "rich_text": [{"type": "text", "text": {"content": "Session Details"}}]
+                }
+            },
+            {
+                "object": "block",
+                "type": "bulleted_list_item",
+                "bulleted_list_item": {
+                    "rich_text": [{"type": "text", "text": {"content": f"Started: {tracker.start_time.strftime('%Y-%m-%d %H:%M:%S')}"}}]
+                }
+            },
+            {
+                "object": "block",
+                "type": "bulleted_list_item",
+                "bulleted_list_item": {
+                    "rich_text": [{"type": "text", "text": {"content": f"Duration: {tracker.get_duration_str()}"}}]
+                }
+            },
+            {
+                "object": "block",
+                "type": "bulleted_list_item",
+                "bulleted_list_item": {
+                    "rich_text": [{"type": "text", "text": {"content": f"Type: {call_type}"}}]
+                }
+            },
+            {
+                "object": "block",
+                "type": "divider",
+                "divider": {}
+            },
+            {
+                "object": "block",
+                "type": "heading_2",
+                "heading_2": {
+                    "rich_text": [{"type": "text", "text": {"content": "Conversation"}}]
+                }
+            }
+        ]
+        
+        # Add each message as a paragraph block
+        for msg in tracker.messages:
+            speaker_text = f"[{msg['speaker']}] {msg['text']}"
+            blocks.append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"type": "text", "text": {"content": speaker_text[:2000]}}]  # Notion limit
+                }
+            })
+        
+        # Create the page in the database
+        notion_client.pages.create(
+            parent={"database_id": NOTION_DATABASE_ID},
+            properties={
+                "Name": {"title": [{"text": {"content": page_title}}]},
+                "Date": {"date": {"start": tracker.start_time.isoformat()}},
+                "Type": {"select": {"name": call_type}},
+                "Duration": {"rich_text": [{"text": {"content": tracker.get_duration_str()}}]},
+                "Status": {"select": {"name": "Completed"}}
+            },
+            children=blocks
+        )
+        
+        logger.info(f"✅ Saved conversation to Notion: {page_title}")
+        
+    except Exception as e:
+        logger.error(f"Failed to save to Notion: {e}")
+
 # Default system prompt when no custom persona is provided
 DEFAULT_SYSTEM_PROMPT = """You are Vocalize, a helpful, professional AI voice assistant. 
 You are concise, friendly, and speak naturally like a human.
@@ -102,6 +238,12 @@ WEB SEARCH CAPABILITY:
 - Use it when users ask about: current events, news, weather, stock prices, sports scores, or anything that requires up-to-date information.
 - When you need to search, briefly tell the user "Let me look that up for you" then use the tool.
 - Summarize search results in a conversational, voice-friendly way - be concise!
+
+WEB PAGE READING CAPABILITY:
+- You have access to a read_webpage tool that can extract content from specific URLs.
+- Use it when users provide a URL and want you to read or summarize the page content.
+- Say "Let me read that page for you" before using the tool.
+- Summarize the key points in a conversational way.
 
 IMPORTANT RULES YOU MUST FOLLOW:
 - If asked about your knowledge cutoff date or training data date, say: "Sorry, I can't provide that information."
@@ -233,6 +375,44 @@ class VocalizeAgent(Agent):
         except Exception as e:
             logger.error(f"Tavily search failed: {e}")
             return "I couldn't complete the search right now."
+    
+    @function_tool
+    async def read_webpage(self, ctx: RunContext, url: str):
+        """Extract and read content from a specific webpage URL.
+        
+        Use this when a user provides a URL and wants you to read or summarize the page content.
+        
+        Args:
+            url: The URL of the webpage to read
+        """
+        if not tavily_client:
+            logger.warning("Tavily API key not configured - page reading unavailable")
+            return "Web page reading is not available right now."
+        
+        try:
+            logger.info(f"Extracting content from: {url}")
+            
+            # Use Tavily extract to get page content
+            response = await tavily_client.extract(urls=[url])
+            
+            # Extract the content
+            results = response.get("results", [])
+            if results and len(results) > 0:
+                content = results[0].get("raw_content", "")
+                if content:
+                    # Limit content length for voice response
+                    if len(content) > 2000:
+                        content = content[:2000] + "... The page has more content, but I've summarized the key parts."
+                    logger.info(f"Extracted {len(content)} characters from {url}")
+                    return content
+                else:
+                    return "I couldn't extract any text content from that page."
+            else:
+                return "I wasn't able to read that webpage. The URL might be invalid or the page might be blocking access."
+            
+        except Exception as e:
+            logger.error(f"Tavily extract failed: {e}")
+            return "I couldn't read that webpage right now."
 
 
 def parse_participant_metadata(metadata: str) -> dict:
@@ -305,6 +485,11 @@ async def entrypoint(ctx: agents.JobContext):
     
     # Track session start time for duration calculation
     session_start_time = datetime.now()
+    
+    # Initialize conversation tracker for Notion logging
+    # For SIP calls, use phone number as the user name
+    notion_user_name = user_name if user_name else participant.identity
+    conversation_tracker = ConversationTracker(user_name=notion_user_name, is_phone_call=is_phone_call)
     
     # Log session start with visual banner (easy to spot in Railway logs)
     log_session_start(
@@ -385,7 +570,24 @@ async def entrypoint(ctx: agents.JobContext):
     await session.generate_reply(instructions=greeting_instruction)
     logger.info("Initial greeting sent")
     
-    # Register handler to log session end when participant disconnects
+    # ============================================================
+    # 📝 CONVERSATION TRACKING - Using conversation_item_added event
+    # ============================================================
+    @session.on("conversation_item_added")
+    def on_conversation_item_added(event):
+        """Capture all conversation items (user and agent) as they're committed."""
+        try:
+            item = event.item
+            if item.role == "user" and item.text_content:
+                conversation_tracker.add_user_message(item.text_content)
+                logger.debug(f"Tracked user: {item.text_content[:50]}...")
+            elif item.role == "assistant" and item.text_content:
+                conversation_tracker.add_agent_message(item.text_content)
+                logger.debug(f"Tracked agent: {item.text_content[:50]}...")
+        except Exception as e:
+            logger.error(f"Error tracking conversation item: {e}")
+    
+    # Register handler to log session end and save to Notion when participant disconnects
     @ctx.room.on("participant_disconnected")
     def on_participant_disconnected(disconnected_participant):
         if disconnected_participant.identity == participant.identity:
@@ -395,6 +597,13 @@ async def entrypoint(ctx: agents.JobContext):
                 user_name=user_name,
                 duration_seconds=duration
             )
+            
+            logger.info(f"Conversation has {len(conversation_tracker.messages)} messages to save")
+            
+            # Save conversation to Notion (runs in background thread to not block)
+            if conversation_tracker.messages:
+                import threading
+                threading.Thread(target=save_to_notion, args=(conversation_tracker,), daemon=True).start()
 
 
 if __name__ == "__main__":
