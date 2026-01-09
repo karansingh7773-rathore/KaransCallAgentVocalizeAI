@@ -570,23 +570,41 @@ async def entrypoint(ctx: agents.JobContext):
         except Exception as e:
             logger.error(f"Error tracking conversation item: {e}")
     
-    # Register handler to log session end and save to Notion when participant disconnects
+    # Track if we've already saved to avoid duplicate saves
+    notion_saved = {"done": False}
+    
+    def save_conversation_to_notion():
+        """Helper to save conversation to Notion (only once)."""
+        if notion_saved["done"]:
+            return
+        notion_saved["done"] = True
+        
+        duration = (datetime.now() - session_start_time).total_seconds()
+        log_session_end(
+            room_name=ctx.room.name,
+            user_name=user_name,
+            duration_seconds=duration
+        )
+        
+        logger.info(f"Conversation has {len(conversation_tracker.messages)} messages to save")
+        
+        if conversation_tracker.messages:
+            import threading
+            threading.Thread(target=save_to_notion, args=(conversation_tracker,), daemon=True).start()
+    
+    # Handler for session close (fires for both WebRTC and SIP)
+    @session.on("close")
+    def on_session_close():
+        """Session closed - save to Notion."""
+        logger.info("Session close event - saving to Notion")
+        save_conversation_to_notion()
+    
+    # Handler for participant disconnect (backup for WebRTC)
     @ctx.room.on("participant_disconnected")
     def on_participant_disconnected(disconnected_participant):
         if disconnected_participant.identity == participant.identity:
-            duration = (datetime.now() - session_start_time).total_seconds()
-            log_session_end(
-                room_name=ctx.room.name,
-                user_name=user_name,
-                duration_seconds=duration
-            )
-            
-            logger.info(f"Conversation has {len(conversation_tracker.messages)} messages to save")
-            
-            # Save conversation to Notion (runs in background thread to not block)
-            if conversation_tracker.messages:
-                import threading
-                threading.Thread(target=save_to_notion, args=(conversation_tracker,), daemon=True).start()
+            logger.info("Participant disconnected - saving to Notion")
+            save_conversation_to_notion()
 
 
 if __name__ == "__main__":
