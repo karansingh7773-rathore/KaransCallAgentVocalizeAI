@@ -396,6 +396,16 @@ class VocalizeAgent(Agent):
         try:
             logger.info(f"Searching web for: {query}")
             
+            # Send tool_use message to frontend (for sound effect)
+            try:
+                job_ctx = get_job_context()
+                if job_ctx:
+                    data = json.dumps({"type": "tool_use", "tool": "search_web"}).encode()
+                    await job_ctx.room.local_participant.publish_data(data, reliable=True)
+                    logger.info("Sent tool_use notification to frontend")
+            except Exception as e:
+                logger.debug(f"Could not send tool_use notification: {e}")
+            
             # Use Tavily async search - fast and optimized for AI
             response = await tavily_client.search(
                 query=query,

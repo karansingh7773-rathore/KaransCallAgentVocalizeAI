@@ -193,6 +193,9 @@ export function useLiveKitAgent({
           } else if (message.type === 'search_sources') {
             console.log('Agent sent search sources:', message.sources);
             setSearchSources(message.sources || []);
+            // Play sound effect when sources appear
+            const toolAudio = new Audio('/tool-use.mp3');
+            toolAudio.play().catch(err => console.warn('Sources sound failed:', err));
             // Sources will hide when user speaks again
           }
         } catch (e) {
@@ -264,6 +267,7 @@ export function useLiveKitAgent({
     setTranscripts([]);
     setCurrentTurn(null);
     setEmailPopupOpen(false);
+    setSearchSources([]);
   }, [cleanup]);
 
   // Submit email from popup back to agent
