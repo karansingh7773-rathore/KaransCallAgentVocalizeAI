@@ -21,3 +21,6 @@ tavily-python~=0.5
 
 # Notion API client for conversation logging
 notion-client~=2.2
+
+# Resend for cloud-compatible email delivery (SMTP blocked on Railway)
+resend~=2.0

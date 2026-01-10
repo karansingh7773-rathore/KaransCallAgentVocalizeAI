@@ -3,11 +3,8 @@ import json
 import logging
 import os
 import re
-import smtplib
 import threading
 from datetime import datetime
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from dotenv import load_dotenv
 
@@ -36,9 +33,12 @@ NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
 NOTION_DATABASE_ID = os.environ.get("NOTION_DATABASE_ID")
 notion_client = NotionClient(auth=NOTION_TOKEN) if NOTION_TOKEN else None
 
-# Initialize Gmail credentials (will be None if not set)
-GMAIL_EMAIL = os.environ.get("GMAIL_EMAIL")
-GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD")
+# Initialize Resend for cloud-compatible email (SMTP is blocked on Railway)
+import resend
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev")  # Use verified domain in production
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
 
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
@@ -278,10 +278,10 @@ note do not speak for more than 5 seconds at a time.
 
 
 # ============================================================
-# 📧 GMAIL EMAIL SENDER
+# 📧 RESEND EMAIL SENDER (Cloud-compatible, works on Railway)
 # ============================================================
-async def send_email_via_gmail(to_email: str, subject: str, body: str) -> dict:
-    """Send an email via Gmail SMTP.
+async def send_email_via_resend(to_email: str, subject: str, body: str) -> dict:
+    """Send an email via Resend API.
     
     Args:
         to_email: Recipient email address
@@ -291,8 +291,8 @@ async def send_email_via_gmail(to_email: str, subject: str, body: str) -> dict:
     Returns:
         Dict with 'success' bool and 'message' string
     """
-    if not GMAIL_EMAIL or not GMAIL_APP_PASSWORD:
-        logger.warning("Gmail credentials not configured")
+    if not RESEND_API_KEY:
+        logger.warning("Resend API key not configured")
         return {"success": False, "message": "Email service is not configured."}
     
     # Validate email format
@@ -301,31 +301,25 @@ async def send_email_via_gmail(to_email: str, subject: str, body: str) -> dict:
         return {"success": False, "message": f"Invalid email address: {to_email}"}
     
     try:
-        # Create message
-        msg = MIMEMultipart()
-        msg['From'] = GMAIL_EMAIL
-        msg['To'] = to_email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain'))
-        
-        # Send via Gmail SMTP_SSL (run in thread to avoid blocking)
-        # Use port 465 with SSL - Railway blocks port 587 (STARTTLS)
+        # Send via Resend API (HTTP-based, no SMTP ports needed)
         def send_sync():
-            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-                server.login(GMAIL_EMAIL, GMAIL_APP_PASSWORD)
-                server.send_message(msg)
+            params: resend.Emails.SendParams = {
+                "from": RESEND_FROM_EMAIL,
+                "to": [to_email],
+                "subject": subject,
+                "text": body,
+            }
+            return resend.Emails.send(params)
         
-        await asyncio.get_event_loop().run_in_executor(None, send_sync)
+        result = await asyncio.get_event_loop().run_in_executor(None, send_sync)
         
-        logger.info(f"✅ Email sent successfully to {to_email}")
+        logger.info(f"✅ Email sent successfully to {to_email}, id: {result.get('id', 'N/A')}")
         return {"success": True, "message": f"Email sent successfully to {to_email}"}
         
-    except smtplib.SMTPAuthenticationError:
-        logger.error("Gmail authentication failed - check app password")
-        return {"success": False, "message": "Email authentication failed. Please check credentials."}
     except Exception as e:
         logger.error(f"Failed to send email: {e}")
         return {"success": False, "message": f"Failed to send email: {str(e)}"}
+
 
 
 # Hangup function as per LiveKit documentation
@@ -505,7 +499,7 @@ class VocalizeAgent(Agent):
         """
         logger.info(f"Sending email to {recipient_email} with subject: {subject}")
         
-        result = await send_email_via_gmail(
+        result = await send_email_via_resend(
             to_email=recipient_email,
             subject=subject,
             body=message
