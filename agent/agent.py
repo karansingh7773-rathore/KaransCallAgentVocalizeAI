@@ -308,10 +308,10 @@ async def send_email_via_gmail(to_email: str, subject: str, body: str) -> dict:
         msg['Subject'] = subject
         msg.attach(MIMEText(body, 'plain'))
         
-        # Send via Gmail SMTP (run in thread to avoid blocking)
+        # Send via Gmail SMTP_SSL (run in thread to avoid blocking)
+        # Use port 465 with SSL - Railway blocks port 587 (STARTTLS)
         def send_sync():
-            with smtplib.SMTP('smtp.gmail.com', 587) as server:
-                server.starttls()
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
                 server.login(GMAIL_EMAIL, GMAIL_APP_PASSWORD)
                 server.send_message(msg)
         
