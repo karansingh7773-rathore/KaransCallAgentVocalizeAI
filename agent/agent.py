@@ -254,11 +254,9 @@ WEB PAGE READING CAPABILITY:
 - Summarize the key points in a conversational way.
 
 EMAIL CAPABILITY:
-- You can send emails using the send_email tool.
-- When a user asks to send an email, collect the recipient's email address, subject, and message content.
-- Always confirm the details with the user before sending.
-- Say "Let me send that email for you" before using the tool.
-- After sending, inform the user whether it was successful or if there was an issue.
+- When user wants to send an email, just ask: "Would you like to speak the email address or type it?"
+- If they say "type", call request_email_input and wait.
+- Collect ONE piece at a time: email, then subject, then message. Do NOT repeat yourself.
 
 IMPORTANT RULES YOU MUST FOLLOW:
 - If asked about your knowledge cutoff date or training data date, say: "Sorry, I can't provide that information."
@@ -356,6 +354,7 @@ class VocalizeAgent(Agent):
         super().__init__(instructions=instructions)
         self.user_name = user_name
         self.is_phone_call = is_phone_call
+        self.pending_email = None  # Stores email received from popup
     
     @function_tool
     async def end_call(self, ctx: RunContext, confirm: bool = False):
@@ -487,6 +486,69 @@ class VocalizeAgent(Agent):
             return f"Great news! I've successfully sent the email to {recipient_email}."
         else:
             return f"I'm sorry, I couldn't send the email. {result['message']}"
+    
+    @function_tool
+    async def request_email_input(self, ctx: RunContext, confirm: bool = True):
+        """Request the user to type their email address in a popup on their screen.
+        
+        Use this when the user says they want to TYPE their email address instead of speaking it.
+        This tool sends a message to the user's screen to show an email input popup.
+        After the user submits, you will be notified with their email address.
+        
+        While waiting for the email, you should remain responsive - if the user asks if you're
+        still there, say "Yes, I'm here! Just waiting for you to enter your email."
+        
+        Args:
+            confirm: Set to True to open the popup. Default is True.
+        """
+        if not confirm:
+            return "Okay, you can speak your email address instead."
+        
+        try:
+            # Get the job context to access the room
+            job_ctx = get_job_context()
+            if job_ctx is None:
+                logger.error("Could not get job context for email input request")
+                return "Sorry, I couldn't open the email input. Could you please speak your email address instead?"
+            
+            # Send data message to frontend to show popup
+            data = json.dumps({"type": "request_email_input"}).encode()
+            await job_ctx.room.local_participant.publish_data(data, reliable=True)
+            
+            logger.info("Sent request_email_input message to frontend")
+            return "I've opened an input box on your screen. Please type your email address there and click submit. I'll wait for you."
+            
+        except Exception as e:
+            logger.error(f"Failed to request email input: {e}")
+            return "Sorry, I couldn't open the email input. Could you please speak your email address instead?"
+    
+    @function_tool
+    async def close_email_popup(self, ctx: RunContext, confirm: bool = True):
+        """Close the email input popup on the user's screen.
+        
+        Use this when the user asks to close, cancel, or dismiss the email input popup.
+        For example if they say "never mind", "cancel", "close the popup", etc.
+        
+        Args:
+            confirm: Set to True to close the popup. Default is True.
+        """
+        if not confirm:
+            return "Okay, the popup will stay open."
+        
+        try:
+            job_ctx = get_job_context()
+            if job_ctx is None:
+                return "The popup should already be closed."
+            
+            data = json.dumps({"type": "close_email_popup"}).encode()
+            await job_ctx.room.local_participant.publish_data(data, reliable=True)
+            
+            logger.info("Sent close_email_popup message to frontend")
+            return "I've closed the email input. Would you like to speak your email address instead, or do something else?"
+            
+        except Exception as e:
+            logger.error(f"Failed to close email popup: {e}")
+            return "I couldn't close the popup. You can click the X button on the popup to close it."
 
 
 def parse_participant_metadata(metadata: str) -> dict:
@@ -643,6 +705,79 @@ async def entrypoint(ctx: agents.JobContext):
     
     await session.generate_reply(instructions=greeting_instruction)
     logger.info("Initial greeting sent")
+    
+    # ============================================================
+    # 📧 EMAIL INPUT POPUP - Handle email response from frontend
+    # ============================================================
+    # Store the received email so the agent can use it
+    received_email = {"value": None}
+    
+    async def handle_email_response(email: str):
+        """Async handler to process email and generate reply."""
+        logger.info(f"📧 Processing received email: {email}")
+        received_email["value"] = email
+        await session.generate_reply(
+            instructions=f"IMPORTANT: The user has typed their email address in the popup box. Their email is: {email}. " +
+            f"Tell them you received their email ({email}) and now ask them for the email subject line. " +
+            "Make sure to confirm the email address you received."
+        )
+    
+    @ctx.room.on("data_received")
+    def on_data_received(packet: rtc.DataPacket):
+        """Handle data messages from frontend (e.g., email input popup response)."""
+        logger.info(f"📨 Data received event triggered! Packet type: {type(packet).__name__}")
+        
+        try:
+            # DataPacket has .data attribute which contains the bytes
+            # The actual payload is in packet.data (UserPacket) which has .data (bytes)
+            raw_data = None
+            
+            # Try to get the data from the packet
+            if hasattr(packet, 'data') and hasattr(packet.data, 'data'):
+                # packet.data is UserPacket, packet.data.data is the bytes
+                raw_data = packet.data.data
+                logger.info(f"📨 Found data in packet.data.data, length: {len(raw_data)}")
+            elif hasattr(packet, 'data') and isinstance(packet.data, bytes):
+                raw_data = packet.data
+                logger.info(f"📨 Found data in packet.data (bytes), length: {len(raw_data)}")
+            elif isinstance(packet, bytes):
+                raw_data = packet
+                logger.info(f"📨 Packet is bytes, length: {len(raw_data)}")
+            else:
+                # Log what we have to debug
+                logger.info(f"📨 Packet attrs: {dir(packet)}")
+                # Last resort - try to find data attribute
+                if hasattr(packet, 'user') and hasattr(packet.user, 'data'):
+                    raw_data = bytes(packet.user.data.data)
+                    logger.info(f"📨 Found data in packet.user.data.data, length: {len(raw_data)}")
+            
+            if not raw_data:
+                logger.warning("📨 Could not extract data from packet")
+                return
+            
+            decoded = raw_data.decode('utf-8')
+            logger.info(f"📨 Decoded data: {decoded}")
+            
+            message = json.loads(decoded)
+            msg_type = message.get("type")
+            
+            logger.info(f"📨 Message type: {msg_type}")
+            
+            if msg_type == "email_response":
+                email = message.get("email", "").strip()
+                logger.info(f"📧 Email extracted: {email}")
+                if email:
+                    # Spawn async task from sync callback
+                    asyncio.create_task(handle_email_response(email))
+                else:
+                    logger.warning("Received empty email from popup")
+                    
+        except json.JSONDecodeError as e:
+            logger.debug(f"Received non-JSON data message: {e}")
+        except Exception as e:
+            logger.error(f"Error handling data message: {e} (type: {type(e).__name__})")
+    
+    logger.info("📧 Data received handler registered")
     
     # ============================================================
     # 📝 CONVERSATION TRACKING - Using conversation_item_added event

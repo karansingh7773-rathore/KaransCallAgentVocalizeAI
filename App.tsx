@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Settings, Phone, PhoneOff, Github, X, Save, User, Briefcase, ArrowRight } from 'lucide-react';
+import { Settings, Phone, PhoneOff, Github, X, Save, User, Briefcase, ArrowRight, Mail } from 'lucide-react';
 import { DiYii } from "react-icons/di";
 import { useLiveKitAgent } from './hooks/useLiveKitAgent';
 import AudioVisualizer from './components/AudioVisualizer';
@@ -23,6 +23,9 @@ function App() {
     // Temporary settings for the modal (only applied on save)
     const [tempPersona, setTempPersona] = useState(agentPersona);
     const [tempBusinessDetails, setTempBusinessDetails] = useState(businessDetails);
+
+    // Email input popup state
+    const [tempEmail, setTempEmail] = useState('');
 
     // Audio refs for sound effects
     const startCallAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -72,7 +75,6 @@ function App() {
         }
     }, []);
 
-    // LiveKit hook with settings
     const {
         connect,
         disconnect,
@@ -80,7 +82,10 @@ function App() {
         transcripts,
         currentTurn,
         currentVolume,
-        agentState
+        agentState,
+        emailPopupOpen,
+        submitEmailToAgent,
+        closeEmailPopup
     } = useLiveKitAgent({
         serverUrl: LIVEKIT_URL,
         agentPersona,
@@ -131,6 +136,14 @@ function App() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userName: name }),
             }).catch(() => { }); // Silently ignore errors
+        }
+    };
+
+    const handleEmailSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (tempEmail.trim()) {
+            submitEmailToAgent(tempEmail.trim());
+            setTempEmail('');
         }
     };
 
@@ -417,6 +430,60 @@ function App() {
                                 Save Configuration
                             </button>
                             <p className="text-center text-[10px] text-stone-600 mt-3">Changes will apply to the next interaction.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Email Input Modal */}
+            {emailPopupOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-scale-in">
+                    <div className="relative z-10 w-full max-w-[340px] rounded-[28px] p-[2px] bg-gradient-to-r from-rose-500 via-fuchsia-500 to-rose-500 animate-gradient-x shadow-[0_0_40px_rgba(244,63,94,0.4)]">
+                        {/* Close Button */}
+                        <button
+                            onClick={closeEmailPopup}
+                            className="absolute -top-2 -right-2 z-20 w-8 h-8 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-full flex items-center justify-center transition-colors"
+                        >
+                            <X className="text-stone-400 hover:text-stone-200" size={16} />
+                        </button>
+                        <div className="w-full bg-[#1a1a1a] rounded-[26px] overflow-hidden">
+                            <div className="p-8 flex flex-col items-center space-y-6">
+                                {/* Icon */}
+                                <div className="w-10 h-10 rounded-xl bg-stone-800/50 flex items-center justify-center border border-stone-700/50">
+                                    <Mail className="text-rose-400" size={18} strokeWidth={1.5} />
+                                </div>
+
+                                {/* Text */}
+                                <div className="text-center space-y-1.5">
+                                    <h2 className="text-2xl font-heading text-stone-200 tracking-wide">Enter Your Email</h2>
+                                    <p className="text-[11px] text-stone-500 font-medium max-w-[200px] mx-auto leading-relaxed">
+                                        Type your email address below
+                                    </p>
+                                </div>
+
+                                {/* Form */}
+                                <form onSubmit={handleEmailSubmit} className="w-full space-y-3">
+                                    <input
+                                        type="email"
+                                        value={tempEmail}
+                                        onChange={(e) => setTempEmail(e.target.value)}
+                                        placeholder="you@example.com"
+                                        className="w-full bg-[#111] border border-stone-800 rounded-lg py-3 px-4 text-center text-stone-200 placeholder:text-stone-600 focus:outline-none focus:border-rose-500/30 transition-colors text-sm"
+                                        autoFocus
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={!tempEmail.trim()}
+                                        className={`w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed text-sm ${tempEmail.trim()
+                                            ? 'bg-stone-100 hover:bg-white text-stone-900 shadow-lg shadow-white/10'
+                                            : 'bg-white/10 hover:bg-white/15 text-stone-300'
+                                            }`}
+                                    >
+                                        Submit
+                                        <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                                    </button>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 </div>

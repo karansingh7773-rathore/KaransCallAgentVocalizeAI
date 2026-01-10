@@ -8,6 +8,7 @@ import {
   Track,
   Participant,
   TranscriptionSegment,
+  DataPacket_Kind,
 } from 'livekit-client';
 import type { Turn, ConnectionState as AppConnectionState } from '../types';
 
@@ -26,6 +27,9 @@ interface UseLiveKitAgentReturn {
   currentTurn: { input: string; output: string } | null;
   currentVolume: number;
   agentState: 'disconnected' | 'connecting' | 'listening' | 'thinking' | 'speaking';
+  emailPopupOpen: boolean;
+  submitEmailToAgent: (email: string) => void;
+  closeEmailPopup: () => void;
 }
 
 const TOKEN_API_URL = '/api/token';
@@ -42,6 +46,7 @@ export function useLiveKitAgent({
   const [currentTurn, setCurrentTurn] = useState<{ input: string; output: string } | null>(null);
   const [currentVolume, setCurrentVolume] = useState<number>(0);
   const [agentState, setAgentState] = useState<'disconnected' | 'connecting' | 'listening' | 'thinking' | 'speaking'>('disconnected');
+  const [emailPopupOpen, setEmailPopupOpen] = useState<boolean>(false);
 
   // Refs - keep same order as before
   const roomRef = useRef<Room | null>(null);
@@ -71,6 +76,7 @@ export function useLiveKitAgent({
     processedRef.current.segments.clear();
     setCurrentVolume(0);
     setAgentState('disconnected');
+    setEmailPopupOpen(false);
   }, []);
 
   // Audio visualization AND playback
@@ -172,6 +178,22 @@ export function useLiveKitAgent({
         }
       });
 
+      // Handle data messages from agent (e.g., email input popup request)
+      room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
+        try {
+          const message = JSON.parse(new TextDecoder().decode(payload));
+          if (message.type === 'request_email_input') {
+            console.log('Agent requested email input popup');
+            setEmailPopupOpen(true);
+          } else if (message.type === 'close_email_popup') {
+            console.log('Agent requested to close email popup');
+            setEmailPopupOpen(false);
+          }
+        } catch (e) {
+          // Ignore non-JSON messages
+        }
+      });
+
       // LIVE Transcription - word by word
       // Text persists until the OTHER speaker starts talking
       room.on(RoomEvent.TranscriptionReceived, (segments: TranscriptionSegment[], participant?: Participant) => {
@@ -230,7 +252,21 @@ export function useLiveKitAgent({
     setStatus('disconnected');
     setTranscripts([]);
     setCurrentTurn(null);
+    setEmailPopupOpen(false);
   }, [cleanup]);
+
+  // Submit email from popup back to agent
+  const submitEmailToAgent = useCallback((email: string) => {
+    if (roomRef.current && email.trim()) {
+      const data = JSON.stringify({ type: 'email_response', email: email.trim() });
+      roomRef.current.localParticipant.publishData(
+        new TextEncoder().encode(data),
+        { reliable: true }
+      );
+      setEmailPopupOpen(false);
+      console.log('Sent email to agent:', email);
+    }
+  }, []);
 
   useEffect(() => {
     return () => cleanup();
@@ -244,5 +280,8 @@ export function useLiveKitAgent({
     currentTurn,
     currentVolume,
     agentState,
+    emailPopupOpen,
+    submitEmailToAgent,
+    closeEmailPopup: () => setEmailPopupOpen(false),
   };
 }
