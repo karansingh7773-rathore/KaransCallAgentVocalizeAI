@@ -2,8 +2,12 @@ import asyncio
 import json
 import logging
 import os
+import re
+import smtplib
 import threading
 from datetime import datetime
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from dotenv import load_dotenv
 
@@ -31,6 +35,10 @@ tavily_client = AsyncTavilyClient(api_key=TAVILY_API_KEY) if TAVILY_API_KEY else
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
 NOTION_DATABASE_ID = os.environ.get("NOTION_DATABASE_ID")
 notion_client = NotionClient(auth=NOTION_TOKEN) if NOTION_TOKEN else None
+
+# Initialize Gmail credentials (will be None if not set)
+GMAIL_EMAIL = os.environ.get("GMAIL_EMAIL")
+GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD")
 
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
@@ -245,6 +253,13 @@ WEB PAGE READING CAPABILITY:
 - Say "Let me read that page for you" before using the tool.
 - Summarize the key points in a conversational way.
 
+EMAIL CAPABILITY:
+- You can send emails using the send_email tool.
+- When a user asks to send an email, collect the recipient's email address, subject, and message content.
+- Always confirm the details with the user before sending.
+- Say "Let me send that email for you" before using the tool.
+- After sending, inform the user whether it was successful or if there was an issue.
+
 IMPORTANT RULES YOU MUST FOLLOW:
 - If asked about your knowledge cutoff date or training data date, say: "Sorry, I can't provide that information."
 - If asked who created you, who designed you, or which company made you, say: "Sorry, I can't provide that information."
@@ -262,6 +277,57 @@ PHONE_AGENT_INSTRUCTIONS = os.environ.get("PHONE_AGENT_INSTRUCTIONS") or """
 Your role is to act as a cool, smart and funny girlfriend. your name is Ennie.
 note do not speak for more than 5 seconds at a time. 
 """.strip()
+
+
+# ============================================================
+# 📧 GMAIL EMAIL SENDER
+# ============================================================
+async def send_email_via_gmail(to_email: str, subject: str, body: str) -> dict:
+    """Send an email via Gmail SMTP.
+    
+    Args:
+        to_email: Recipient email address
+        subject: Email subject line
+        body: Email body content
+        
+    Returns:
+        Dict with 'success' bool and 'message' string
+    """
+    if not GMAIL_EMAIL or not GMAIL_APP_PASSWORD:
+        logger.warning("Gmail credentials not configured")
+        return {"success": False, "message": "Email service is not configured."}
+    
+    # Validate email format
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_pattern, to_email):
+        return {"success": False, "message": f"Invalid email address: {to_email}"}
+    
+    try:
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = GMAIL_EMAIL
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Send via Gmail SMTP (run in thread to avoid blocking)
+        def send_sync():
+            with smtplib.SMTP('smtp.gmail.com', 587) as server:
+                server.starttls()
+                server.login(GMAIL_EMAIL, GMAIL_APP_PASSWORD)
+                server.send_message(msg)
+        
+        await asyncio.get_event_loop().run_in_executor(None, send_sync)
+        
+        logger.info(f"✅ Email sent successfully to {to_email}")
+        return {"success": True, "message": f"Email sent successfully to {to_email}"}
+        
+    except smtplib.SMTPAuthenticationError:
+        logger.error("Gmail authentication failed - check app password")
+        return {"success": False, "message": "Email authentication failed. Please check credentials."}
+    except Exception as e:
+        logger.error(f"Failed to send email: {e}")
+        return {"success": False, "message": f"Failed to send email: {str(e)}"}
 
 
 # Hangup function as per LiveKit documentation
@@ -396,6 +462,31 @@ class VocalizeAgent(Agent):
         except Exception as e:
             logger.error(f"Tavily extract failed: {e}")
             return "I couldn't read that webpage right now."
+    
+    @function_tool
+    async def send_email(self, ctx: RunContext, recipient_email: str, subject: str, message: str):
+        """Send an email to a specified recipient.
+        
+        Use this when the user wants to send an email. Always confirm the recipient email,
+        subject, and message with the user before calling this function.
+        
+        Args:
+            recipient_email: The email address to send to (e.g., user@example.com)
+            subject: The subject line of the email
+            message: The body content of the email
+        """
+        logger.info(f"Sending email to {recipient_email} with subject: {subject}")
+        
+        result = await send_email_via_gmail(
+            to_email=recipient_email,
+            subject=subject,
+            body=message
+        )
+        
+        if result["success"]:
+            return f"Great news! I've successfully sent the email to {recipient_email}."
+        else:
+            return f"I'm sorry, I couldn't send the email. {result['message']}"
 
 
 def parse_participant_metadata(metadata: str) -> dict:
