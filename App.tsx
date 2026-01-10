@@ -30,15 +30,18 @@ function App() {
     // Audio refs for sound effects
     const startCallAudioRef = useRef<HTMLAudioElement | null>(null);
     const endCallAudioRef = useRef<HTMLAudioElement | null>(null);
+    const popupAudioRef = useRef<HTMLAudioElement | null>(null);
 
     // Initialize audio elements on mount
     useEffect(() => {
         startCallAudioRef.current = new Audio('/start-call.mp3');
         endCallAudioRef.current = new Audio('/start-call.mp3');
+        popupAudioRef.current = new Audio('/popup.mp3');
 
         // Preload the audio files
         startCallAudioRef.current.preload = 'auto';
         endCallAudioRef.current.preload = 'auto';
+        popupAudioRef.current.preload = 'auto';
     }, []);
 
     // Play sound effect helper
@@ -92,6 +95,16 @@ function App() {
         businessDetails,
         userName,
     });
+
+    // Play popup sound when email popup opens
+    useEffect(() => {
+        if (emailPopupOpen && popupAudioRef.current) {
+            popupAudioRef.current.currentTime = 0;
+            popupAudioRef.current.play().catch((err) => {
+                console.warn('Popup sound effect failed to play:', err);
+            });
+        }
+    }, [emailPopupOpen]);
 
     const toggleConnection = () => {
         if (status === 'connected' || status === 'connecting') {
