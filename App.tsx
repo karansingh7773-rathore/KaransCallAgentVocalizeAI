@@ -88,7 +88,8 @@ function App() {
         agentState,
         emailPopupOpen,
         submitEmailToAgent,
-        closeEmailPopup
+        closeEmailPopup,
+        searchSources
     } = useLiveKitAgent({
         serverUrl: LIVEKIT_URL,
         agentPersona,
@@ -241,6 +242,36 @@ function App() {
             {/* Main Content Area */}
             <main className="flex-grow flex items-center justify-center relative z-20">
                 <section className="w-full max-w-4xl mx-auto flex flex-col items-center justify-center text-center space-y-12">
+                    {/* Search Sources Display with Favicons - Above Transcript */}
+                    {searchSources.length > 0 && (
+                        <div className="flex items-center gap-2 bg-stone-900/80 backdrop-blur-sm rounded-full px-4 py-2 border border-stone-800">
+                            <div className="flex -space-x-2">
+                                {searchSources.slice(0, 5).map((source, idx) => {
+                                    const domain = new URL(source.url).hostname;
+                                    return (
+                                        <a
+                                            key={idx}
+                                            href={source.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            title={source.title || domain}
+                                            className="w-7 h-7 rounded-full bg-stone-800 border-2 border-stone-900 flex items-center justify-center hover:scale-110 hover:z-10 transition-transform overflow-hidden animate-source-pop"
+                                            style={{ animationDelay: `${idx * 100}ms` }}
+                                        >
+                                            <img
+                                                src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
+                                                alt={domain}
+                                                className="w-4 h-4"
+                                                onError={(e) => { (e.target as HTMLImageElement).src = '/favicon.ico'; }}
+                                            />
+                                        </a>
+                                    );
+                                })}
+                            </div>
+                            <span className="text-sm text-stone-400 font-medium animate-source-pop" style={{ animationDelay: `${Math.min(searchSources.length, 5) * 100}ms` }}>{searchSources.length} sources</span>
+                        </div>
+                    )}
+
                     {/* Dynamic Content: Greeting vs Transcript */}
                     {status === 'connected' ? (
                         <Transcript turns={transcripts} currentTurn={currentTurn} />

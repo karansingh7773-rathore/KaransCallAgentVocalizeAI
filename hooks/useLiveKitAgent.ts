@@ -30,6 +30,7 @@ interface UseLiveKitAgentReturn {
   emailPopupOpen: boolean;
   submitEmailToAgent: (email: string) => void;
   closeEmailPopup: () => void;
+  searchSources: { url: string; title: string }[];
 }
 
 const TOKEN_API_URL = '/api/token';
@@ -47,6 +48,7 @@ export function useLiveKitAgent({
   const [currentVolume, setCurrentVolume] = useState<number>(0);
   const [agentState, setAgentState] = useState<'disconnected' | 'connecting' | 'listening' | 'thinking' | 'speaking'>('disconnected');
   const [emailPopupOpen, setEmailPopupOpen] = useState<boolean>(false);
+  const [searchSources, setSearchSources] = useState<{ url: string; title: string }[]>([]);
 
   // Refs - keep same order as before
   const roomRef = useRef<Room | null>(null);
@@ -188,6 +190,10 @@ export function useLiveKitAgent({
           } else if (message.type === 'close_email_popup') {
             console.log('Agent requested to close email popup');
             setEmailPopupOpen(false);
+          } else if (message.type === 'search_sources') {
+            console.log('Agent sent search sources:', message.sources);
+            setSearchSources(message.sources || []);
+            // Sources will hide when user speaks again
           }
         } catch (e) {
           // Ignore non-JSON messages
@@ -200,6 +206,11 @@ export function useLiveKitAgent({
         if (!segments?.length) return;
 
         const isAgent = participant?.identity !== userName;
+
+        // Clear search sources when user speaks again
+        if (!isAgent) {
+          setSearchSources([]);
+        }
 
         for (const seg of segments) {
           const text = seg.text?.trim();
@@ -283,5 +294,6 @@ export function useLiveKitAgent({
     emailPopupOpen,
     submitEmailToAgent,
     closeEmailPopup: () => setEmailPopupOpen(false),
+    searchSources,
   };
 }

@@ -400,16 +400,35 @@ class VocalizeAgent(Agent):
             response = await tavily_client.search(
                 query=query,
                 search_depth="basic",
-                max_results=3,
+                max_results=5,
                 include_answer=True,
             )
+            
+            # Extract source URLs for frontend display
+            sources = []
+            results = response.get("results", [])
+            for r in results[:5]:
+                url = r.get("url", "")
+                title = r.get("title", "")
+                if url:
+                    sources.append({"url": url, "title": title})
+            
+            # Send sources to frontend via data channel
+            if sources:
+                try:
+                    job_ctx = get_job_context()
+                    if job_ctx:
+                        data = json.dumps({"type": "search_sources", "sources": sources}).encode()
+                        await job_ctx.room.local_participant.publish_data(data, reliable=True)
+                        logger.info(f"Sent {len(sources)} search sources to frontend")
+                except Exception as e:
+                    logger.error(f"Failed to send sources to frontend: {e}")
             
             # Extract the answer or compile results
             if response.get("answer"):
                 result = response["answer"]
                 logger.info(f"Tavily returned answer: {result[:100]}...")
             else:
-                results = response.get("results", [])
                 if results:
                     summaries = [r.get("content", "")[:200] for r in results[:2]]
                     result = " ".join(summaries)
