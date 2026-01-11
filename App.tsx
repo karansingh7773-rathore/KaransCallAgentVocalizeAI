@@ -35,13 +35,18 @@ function App() {
     // Initialize audio elements on mount
     useEffect(() => {
         startCallAudioRef.current = new Audio('/start-call.mp3');
-        endCallAudioRef.current = new Audio('/start-call.mp3');
+        endCallAudioRef.current = new Audio('/end-call.mp3');
         popupAudioRef.current = new Audio('/popup.mp3');
 
         // Preload the audio files
         startCallAudioRef.current.preload = 'auto';
         endCallAudioRef.current.preload = 'auto';
         popupAudioRef.current.preload = 'auto';
+
+        // Load the audio files
+        startCallAudioRef.current.load();
+        endCallAudioRef.current.load();
+        popupAudioRef.current.load();
     }, []);
 
     // Play sound effect helper
