@@ -238,7 +238,7 @@ def save_to_notion(tracker: ConversationTracker):
 DEFAULT_SYSTEM_PROMPT = """You are Vocalize, a helpful, professional AI voice assistant. 
 You are concise, friendly, and speak naturally like a human.
 Keep your responses brief and conversational - this is a voice call, not a text chat.
-Avoid using any special formatting, emojis, or symbols that don't translate well to speech.
+NEVER use any markdown formatting like **bold**, *italic*, __, ##, bullets, or any special symbols - everything you say will be spoken aloud and displayed as-is.
 Be warm, personable, and helpful.
 
 WEB SEARCH CAPABILITY:
@@ -253,10 +253,14 @@ WEB PAGE READING CAPABILITY:
 - Say "Let me read that page for you" before using the tool.
 - Summarize the key points in a conversational way.
 
-EMAIL CAPABILITY:
-- When user wants to send an email, just ask: "Would you like to speak the email address or type it?"
-- If they say "type", call request_email_input and wait.
-- Collect ONE piece at a time: email, then subject, then message. Do NOT repeat yourself.
+EMAIL CAPABILITY - CRITICAL:
+- WHENEVER a user asks you to send, email, or message them ANY information (weather, details, research, etc.):
+  1. You MUST call the request_email_input() tool FIRST before responding
+  2. Then say: "I've opened an email input on your screen. Please type your email there and I'll send the info right away."
+- DO NOT ask "Could you provide the email address?" - that's wrong! Call the tool instead!
+- DO NOT ask for subject or body - auto-generate from context
+- The popup MUST appear before you finish speaking
+- Trigger phrases: "send me", "email me", "message me", "mail me", "send it to my email", "send the details"
 
 IMPORTANT RULES YOU MUST FOLLOW:
 - If asked about your knowledge cutoff date or training data date, say: "Sorry, I can't provide that information."
@@ -278,15 +282,243 @@ note do not speak for more than 5 seconds at a time.
 
 
 # ============================================================
+# 📧 HTML EMAIL BUILDER (Styled like Notion/Simplilearn)
+# ============================================================
+# Your Vercel app URL for logo/icons
+APP_PUBLIC_URL = os.environ.get("APP_PUBLIC_URL", "https://karans-call-agent-vocalize-ai.vercel.app")
+
+def build_html_email(
+    subject: str, 
+    body: str, 
+    sources: list[dict] = None, 
+    images: list[str] = None,
+    user_name: str = None
+) -> tuple[str, str]:
+    """Build a styled HTML email with inline CSS (dark theme like Notion/Simplilearn).
+    
+    Args:
+        subject: Email subject (used in header)
+        body: Main email content
+        sources: List of {"title": str, "url": str} from Tavily search
+        images: List of image URLs to embed
+        user_name: Optional user name for personalized greeting
+        
+    Returns:
+        Tuple of (html_content, plain_text_fallback)
+    """
+    # Convert body text with line breaks to HTML paragraphs
+    body_paragraphs = body.replace('\n\n', '</p><p style="margin: 0 0 16px 0; line-height: 1.6;">').replace('\n', '<br>')
+    
+    # Personalized greeting
+    greeting = f"Hi {user_name}," if user_name else "Hello,"
+    
+    # Build sources section HTML
+    sources_html = ""
+    if sources and len(sources) > 0:
+        source_items = ""
+        for src in sources[:5]:  # Max 5 sources
+            title = src.get("title", "Source")
+            url = src.get("url", "#")
+            # Extract domain for favicon
+            domain = url.split("//")[-1].split("/")[0] if "//" in url else url.split("/")[0]
+            favicon_url = f"https://www.google.com/s2/favicons?domain={domain}&sz=32"
+            
+            source_items += f'''
+            <tr>
+                <td style="padding: 12px 16px; background: #2a2a2a; border-radius: 8px; margin-bottom: 8px;">
+                    <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                        <tr>
+                            <td width="32" valign="top">
+                                <img src="{favicon_url}" width="20" height="20" alt="" style="border-radius: 4px; margin-right: 12px;">
+                            </td>
+                            <td>
+                                <a href="{url}" style="color: #60a5fa; text-decoration: none; font-size: 14px; font-weight: 500;">{title}</a>
+                                <br>
+                                <span style="color: #6b7280; font-size: 12px;">{domain}</span>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+            <tr><td height="8"></td></tr>
+            '''
+        
+        sources_html = f'''
+        <tr>
+            <td style="padding: 24px 0 12px 0;">
+                <h3 style="margin: 0; color: #9ca3af; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                    Sources
+                </h3>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                    {source_items}
+                </table>
+            </td>
+        </tr>
+        '''
+    
+    # Build images section HTML
+    images_html = ""
+    if images and len(images) > 0:
+        image_items = ""
+        for img_url in images[:3]:  # Max 3 images
+            image_items += f'''
+            <tr>
+                <td style="padding: 8px 0;">
+                    <img src="{img_url}" alt="Related image" style="max-width: 100%; height: auto; border-radius: 12px; display: block;">
+                </td>
+            </tr>
+            '''
+        
+        images_html = f'''
+        <tr>
+            <td style="padding: 24px 0 12px 0;">
+                <h3 style="margin: 0; color: #9ca3af; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                    Related Images
+                </h3>
+            </td>
+        </tr>
+        {image_items}
+        '''
+    
+    # Logo URL - use the icons.png file from your Vercel app
+    logo_url = f"{APP_PUBLIC_URL}/icons.png"
+    
+    # Complete HTML email template with embedded Google Fonts for cursive styling
+    html = f'''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>{subject}</title>
+    <style type="text/css">
+        @import url('https://fonts.googleapis.com/css2?family=Satisfy&display=swap');
+        .brand-font {{
+            font-family: 'Satisfy', 'Brush Script MT', 'Lucida Handwriting', cursive !important;
+        }}
+    </style>
+    <!--[if mso]>
+    <style type="text/css">
+        .brand-font {{ font-family: Georgia, cursive !important; }}
+    </style>
+    <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; background-color: #0a0a0a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #0a0a0a;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <!-- Main Container -->
+                <table cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; background-color: #1a1a1a; border-radius: 16px; overflow: hidden;">
+                    
+                    <!-- Header with Logo -->
+                    <tr>
+                        <td style="padding: 32px 32px 24px 32px; border-bottom: 1px solid #2a2a2a;">
+                            <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                                <tr>
+                                    <td width="52">
+                                        <div style="width: 44px; height: 44px; background: linear-gradient(135deg, #f43f5e, #e11d48); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                                            <img src="{logo_url}" width="44" height="44" alt="Vocalize AI" style="border-radius: 12px; display: block;">
+                                        </div>
+                                    </td>
+                                    <td style="padding-left: 14px;">
+                                        <span class="brand-font" style="font-family: 'Satisfy', 'Brush Script MT', 'Lucida Handwriting', cursive; color: #ffffff; font-size: 26px;">Vocalize</span>
+                                        <span class="brand-font" style="font-family: 'Satisfy', 'Brush Script MT', 'Lucida Handwriting', cursive; color: #f43f5e; font-size: 26px; font-style: italic;"> AI</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="padding: 32px;">
+                            <!-- Greeting -->
+                            <p style="margin: 0 0 24px 0; color: #f3f4f6; font-size: 17px; font-weight: 500;">
+                                {greeting}
+                            </p>
+                            
+                            <!-- Subject as Heading -->
+                            <h1 style="margin: 0 0 24px 0; color: #ffffff; font-size: 28px; font-weight: 700; line-height: 1.3;">
+                                {subject}
+                            </h1>
+                            
+                            <!-- Body Content -->
+                            <div style="margin: 0 0 16px 0; color: #e5e7eb; font-size: 16px; line-height: 1.7;">
+                                {body_paragraphs}
+                            </div>
+                            
+                            <!-- Sources Section -->
+                            <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                                {sources_html}
+                                {images_html}
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 24px 32px; background-color: #111111; border-top: 1px solid #2a2a2a;">
+                            <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                                <tr>
+                                    <td>
+                                        <p style="margin: 0 0 8px 0; color: #9ca3af; font-size: 13px;">
+                                            Sent by <span class="brand-font" style="font-family: 'Satisfy', 'Brush Script MT', 'Lucida Handwriting', cursive; color: #f3f4f6; font-size: 16px;">Vocalize</span> <span class="brand-font" style="font-family: 'Satisfy', 'Brush Script MT', 'Lucida Handwriting', cursive; color: #f43f5e; font-size: 16px; font-style: italic;">AI</span>
+                                        </p>
+                                        <p style="margin: 0; color: #6b7280; font-size: 12px;">
+                                            Your intelligent voice assistant
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+'''
+    
+    # Plain text fallback
+    plain_text = f"{greeting}\n\n{subject}\n\n{body}"
+    if sources:
+        plain_text += "\n\nSources:\n"
+        for src in sources[:5]:
+            plain_text += f"- {src.get('title', 'Source')}: {src.get('url', '')}\n"
+    plain_text += "\n---\nSent by Vocalize AI"
+    
+    return html, plain_text
+
+
+# ============================================================
 # 📧 RESEND EMAIL SENDER (Cloud-compatible, works on Railway)
 # ============================================================
-async def send_email_via_resend(to_email: str, subject: str, body: str) -> dict:
-    """Send an email via Resend API.
+async def send_email_via_resend(
+    to_email: str, 
+    subject: str, 
+    body: str,
+    sources: list[dict] = None,
+    images: list[str] = None,
+    user_name: str = None,
+    use_html: bool = True
+) -> dict:
+    """Send an email via Resend API with optional HTML styling.
     
     Args:
         to_email: Recipient email address
         subject: Email subject line
         body: Email body content
+        sources: Optional list of {"title": str, "url": str} for source links
+        images: Optional list of image URLs to embed
+        user_name: Optional user name for personalized greeting
+        use_html: If True, send styled HTML email; if False, send plain text
         
     Returns:
         Dict with 'success' bool and 'message' string
@@ -301,14 +533,29 @@ async def send_email_via_resend(to_email: str, subject: str, body: str) -> dict:
         return {"success": False, "message": f"Invalid email address: {to_email}"}
     
     try:
+        # Build HTML email if requested
+        if use_html:
+            html_content, plain_text = build_html_email(
+                subject=subject,
+                body=body,
+                sources=sources,
+                images=images,
+                user_name=user_name
+            )
+        else:
+            html_content = None
+            plain_text = body
+        
         # Send via Resend API (HTTP-based, no SMTP ports needed)
         def send_sync():
             params: resend.Emails.SendParams = {
                 "from": RESEND_FROM_EMAIL,
                 "to": [to_email],
                 "subject": subject,
-                "text": body,
+                "text": plain_text,
             }
+            if html_content:
+                params["html"] = html_content
             return resend.Emails.send(params)
         
         result = await asyncio.get_event_loop().run_in_executor(None, send_sync)
@@ -487,9 +734,10 @@ class VocalizeAgent(Agent):
     
     @function_tool
     async def send_email(self, ctx: RunContext, recipient_email: str, subject: str, message: str):
-        """Send an email to a specified recipient.
+        """Send a beautifully styled HTML email to a specified recipient.
         
-        Use this when the user wants to send an email. Always confirm the recipient email,
+        Use this when the user wants to send a regular email. The email will be styled
+        with a dark theme and the Vocalize AI branding. Always confirm the recipient email,
         subject, and message with the user before calling this function.
         
         Args:
@@ -497,29 +745,114 @@ class VocalizeAgent(Agent):
             subject: The subject line of the email
             message: The body content of the email
         """
-        logger.info(f"Sending email to {recipient_email} with subject: {subject}")
+        logger.info(f"Sending styled email to {recipient_email} with subject: {subject}")
         
         result = await send_email_via_resend(
             to_email=recipient_email,
             subject=subject,
-            body=message
+            body=message,
+            user_name=self.user_name if self.user_name else None
         )
         
         if result["success"]:
-            return f"Great news! I've successfully sent the email to {recipient_email}."
+            return f"Great news! I've successfully sent a beautifully styled email to {recipient_email}."
         else:
             return f"I'm sorry, I couldn't send the email. {result['message']}"
     
     @function_tool
+    async def send_research_email(self, ctx: RunContext, recipient_email: str, topic: str, additional_message: str = ""):
+        """Search the web for information on a topic and send a styled email with sources and images.
+        
+        Use this when the user wants you to research something and email them the results.
+        This tool will:
+        1. Search the web for the topic using Tavily
+        2. Compile the information with source links and relevant images
+        3. Send a professionally styled HTML email with all the research
+        
+        Example uses:
+        - "Research the weather in Jaipur and email me the results"
+        - "Find information about Python tutorials and send it to my email"
+        - "Look up the latest AI news and email me a summary"
+        
+        Args:
+            recipient_email: The email address to send to
+            topic: What to research/search for
+            additional_message: Optional extra message to include in the email
+        """
+        if not tavily_client:
+            return "Web search is not available right now. I can't send a research email without it."
+        
+        logger.info(f"Researching '{topic}' to send to {recipient_email}")
+        
+        try:
+            # Search with Tavily including images
+            response = await tavily_client.search(
+                query=topic,
+                search_depth="advanced",  # More thorough search for email
+                max_results=5,
+                include_answer=True,
+                include_images=True,  # Get relevant images
+            )
+            
+            # Extract the answer
+            answer = response.get("answer", "")
+            if not answer:
+                # Compile from results if no direct answer
+                results = response.get("results", [])
+                if results:
+                    summaries = [r.get("content", "")[:300] for r in results[:3]]
+                    answer = " ".join(summaries)
+                else:
+                    return "I couldn't find enough information on that topic to send an email."
+            
+            # Extract sources
+            sources = []
+            for r in response.get("results", [])[:5]:
+                url = r.get("url", "")
+                title = r.get("title", "")
+                if url:
+                    sources.append({"title": title, "url": url})
+            
+            # Extract images
+            images = response.get("images", [])[:3]  # Max 3 images
+            
+            # Build email content
+            email_body = answer
+            if additional_message:
+                email_body = f"{additional_message}\n\n{answer}"
+            
+            # Send the styled email with sources and images
+            result = await send_email_via_resend(
+                to_email=recipient_email,
+                subject=f"Research: {topic}",
+                body=email_body,
+                sources=sources,
+                images=images,
+                user_name=self.user_name if self.user_name else None
+            )
+            
+            if result["success"]:
+                source_count = len(sources)
+                image_count = len(images)
+                return f"I've sent you a beautifully styled research email about '{topic}' to {recipient_email}. It includes {source_count} source links and {image_count} images."
+            else:
+                return f"I found the information but couldn't send the email. {result['message']}"
+                
+        except Exception as e:
+            logger.error(f"Research email failed: {e}")
+            return "I couldn't complete the research email. Please try again."
+
+    
+    @function_tool
     async def request_email_input(self, ctx: RunContext, confirm: bool = True):
-        """Request the user to type their email address in a popup on their screen.
+        """Open a popup on the user's screen for them to type their email address.
         
-        Use this when the user says they want to TYPE their email address instead of speaking it.
-        This tool sends a message to the user's screen to show an email input popup.
-        After the user submits, you will be notified with their email address.
+        ALWAYS use this tool when the user asks to send them details, email them info, 
+        message them something, etc. Voice input for email addresses is error-prone,
+        so this popup is the preferred method.
         
-        While waiting for the email, you should remain responsive - if the user asks if you're
-        still there, say "Yes, I'm here! Just waiting for you to enter your email."
+        After calling this, the popup will appear on the user's screen. When they submit,
+        you will receive their email address and should immediately send the email.
         
         Args:
             confirm: Set to True to open the popup. Default is True.
