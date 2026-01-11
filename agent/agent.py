@@ -253,14 +253,13 @@ WEB PAGE READING CAPABILITY:
 - Say "Let me read that page for you" before using the tool.
 - Summarize the key points in a conversational way.
 
-EMAIL CAPABILITY - CRITICAL:
-- WHENEVER a user asks you to send, email, or message them ANY information (weather, details, research, etc.):
-  1. You MUST call the request_email_input() tool FIRST before responding
-  2. Then say: "I've opened an email input on your screen. Please type your email there and I'll send the info right away."
-- DO NOT ask "Could you provide the email address?" - that's wrong! Call the tool instead!
-- DO NOT ask for subject or body - auto-generate from context
-- The popup MUST appear before you finish speaking
-- Trigger phrases: "send me", "email me", "message me", "mail me", "send it to my email", "send the details"
+EMAIL CAPABILITY - MANDATORY TOOL USE:
+- When user says "send me", "email me", "message me", or wants info sent to their email:
+  IMMEDIATELY call request_email_input() tool. Do NOT respond with words first.
+- NEVER say "Could you share your email?" or "What's your email address?" - THIS IS FORBIDDEN.
+- NEVER ask for the email verbally. ALWAYS use the request_email_input() tool instead.
+- After tool call succeeds, say ONE sentence: "I've opened an input for your email." Then STOP.
+- DO NOT keep talking. Wait silently until you receive the email address.
 
 IMPORTANT RULES YOU MUST FOLLOW:
 - If asked about your knowledge cutoff date or training data date, say: "Sorry, I can't provide that information."
@@ -845,38 +844,38 @@ class VocalizeAgent(Agent):
     
     @function_tool
     async def request_email_input(self, ctx: RunContext, confirm: bool = True):
-        """Open a popup on the user's screen for them to type their email address.
+        """MUST USE THIS TOOL when user wants to receive information via email.
         
-        ALWAYS use this tool when the user asks to send them details, email them info, 
-        message them something, etc. Voice input for email addresses is error-prone,
-        so this popup is the preferred method.
+        TRIGGER PHRASES - Call this tool when user says:
+        - "send me", "email me", "message me", "mail me"
+        - "send it to my email", "send the details", "send that to me"
+        - Any request to receive information via email
         
-        After calling this, the popup will appear on the user's screen. When they submit,
-        you will receive their email address and should immediately send the email.
+        DO NOT ask "what's your email?" - use this tool instead to show a popup.
+        After calling, say ONE sentence then STOP TALKING. Wait for email submission.
         
         Args:
-            confirm: Set to True to open the popup. Default is True.
+            confirm: Set to True to open the popup.
         """
         if not confirm:
-            return "Okay, you can speak your email address instead."
+            return "Okay, speak your email address instead."
         
         try:
-            # Get the job context to access the room
             job_ctx = get_job_context()
             if job_ctx is None:
                 logger.error("Could not get job context for email input request")
-                return "Sorry, I couldn't open the email input. Could you please speak your email address instead?"
+                return "I couldn't open the input. Please speak your email address."
             
-            # Send data message to frontend to show popup
             data = json.dumps({"type": "request_email_input"}).encode()
             await job_ctx.room.local_participant.publish_data(data, reliable=True)
             
             logger.info("Sent request_email_input message to frontend")
-            return "I've opened an input box on your screen. Please type your email address there and click submit. I'll wait for you."
+            # Short response - agent should STOP talking after saying this
+            return "Email input opened. Type your email and submit. [STOP TALKING NOW - WAIT SILENTLY]"
             
         except Exception as e:
             logger.error(f"Failed to request email input: {e}")
-            return "Sorry, I couldn't open the email input. Could you please speak your email address instead?"
+            return "I couldn't open the input. Please speak your email address."
     
     @function_tool
     async def close_email_popup(self, ctx: RunContext, confirm: bool = True):
@@ -944,6 +943,15 @@ def build_system_prompt(metadata: dict) -> str:
 
 Remember: This is a voice conversation. Keep responses concise and natural.
 Avoid special characters, emojis, or formatting that doesn't translate to speech.""")
+    
+    # ALWAYS append email tool instructions - critical for custom personas
+    prompt_parts.append("""
+
+EMAIL CAPABILITY - MANDATORY:
+- When user says "send me", "email me", "message me" or wants info sent to email:
+  IMMEDIATELY call request_email_input() tool. Do NOT ask for email verbally.
+- NEVER say "what's your email?" - use the tool to show a popup instead.
+- After tool call, say ONE sentence then STOP TALKING. Wait silently.""")
     
     return "".join(prompt_parts)
 
