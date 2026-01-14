@@ -31,22 +31,29 @@ function App() {
     const startCallAudioRef = useRef<HTMLAudioElement | null>(null);
     const endCallAudioRef = useRef<HTMLAudioElement | null>(null);
     const popupAudioRef = useRef<HTMLAudioElement | null>(null);
+    const thinkingAudioRef = useRef<HTMLAudioElement | null>(null);
 
     // Initialize audio elements on mount
     useEffect(() => {
         startCallAudioRef.current = new Audio('/start-call.mp3');
         endCallAudioRef.current = new Audio('/end-call.mp3');
         popupAudioRef.current = new Audio('/popup.mp3');
+        thinkingAudioRef.current = new Audio('/menu-open-sound-effect-432999.mp3');
 
         // Preload the audio files
         startCallAudioRef.current.preload = 'auto';
         endCallAudioRef.current.preload = 'auto';
         popupAudioRef.current.preload = 'auto';
+        thinkingAudioRef.current.preload = 'auto';
+
+        // Thinking sound loops
+        thinkingAudioRef.current.loop = true;
 
         // Load the audio files
         startCallAudioRef.current.load();
         endCallAudioRef.current.load();
         popupAudioRef.current.load();
+        thinkingAudioRef.current.load();
     }, []);
 
     // Play sound effect helper
@@ -111,6 +118,31 @@ function App() {
             });
         }
     }, [emailPopupOpen]);
+
+    // Play thinking sound when agent is thinking (with 2s delay)
+    useEffect(() => {
+        let timeoutId: ReturnType<typeof setTimeout>;
+
+        if (agentState === 'thinking') {
+            timeoutId = setTimeout(() => {
+                if (thinkingAudioRef.current) {
+                    thinkingAudioRef.current.currentTime = 0;
+                    thinkingAudioRef.current.play().catch((err) => {
+                        console.warn('Thinking sound effect failed to play:', err);
+                    });
+                }
+            }, 2000);
+        } else {
+            if (thinkingAudioRef.current) {
+                thinkingAudioRef.current.pause();
+                thinkingAudioRef.current.currentTime = 0;
+            }
+        }
+
+        return () => {
+            clearTimeout(timeoutId);
+        };
+    }, [agentState]);
 
     const toggleConnection = () => {
         if (status === 'connected' || status === 'connecting') {

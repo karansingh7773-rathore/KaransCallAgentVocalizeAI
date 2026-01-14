@@ -1023,6 +1023,9 @@ async def entrypoint(ctx: agents.JobContext):
         hindi_tts=sarvam.TTS(
             target_language_code="hi-IN",
             speaker="vidya",  # Change voice here
+            speech_sample_rate=16000,  # Lower sample rate for faster processing (default 22050)
+            enable_preprocessing=True,  # Better handling of Hindi/English mixed text
+            pace=1.1,  # Slightly faster speech for lower latency
         ),
     )
     
