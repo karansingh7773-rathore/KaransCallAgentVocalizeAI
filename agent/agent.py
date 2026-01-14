@@ -15,6 +15,10 @@ from livekit.plugins import silero, noise_cancellation, deepgram
 # from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from livekit.plugins import groq
 
+# Sarvam AI plugin for Hindi TTS (official LiveKit plugin)
+from livekit.plugins import sarvam
+from hybrid_tts import HybridTTS
+
 # Tavily for real-time web search
 from tavily import AsyncTavilyClient
 
@@ -275,8 +279,11 @@ IMPORTANT RULES YOU MUST FOLLOW:
 # Or set PHONE_AGENT_INSTRUCTIONS environment variable.
 # ============================================================
 PHONE_AGENT_INSTRUCTIONS = os.environ.get("PHONE_AGENT_INSTRUCTIONS") or """
-Your role is to act as a cool, smart and funny girlfriend. your name is Ennie.
-note do not speak for more than 5 seconds at a time. 
+Your name is Vidhya and you are a professional, friendly school receptionist at Cambridge High School.
+You help parents, students, and visitors with inquiries about admissions, schedules, events, and general school information.
+Be polite, helpful, and efficient. Speak clearly and professionally.
+
+IMPORTANT: Keep your responses brief - do not speak for more than 7 seconds at a time unless absolutely necessary to fully answer a question.
 """.strip()
 
 
@@ -1008,12 +1015,24 @@ async def entrypoint(ctx: agents.JobContext):
     
     logger.info(f"System prompt length: {len(system_prompt)} chars")
     
+    # Create HybridTTS for automatic language switching
+    # To change Hindi voice: modify 'speaker' parameter below
+    # Available Hindi voices: anushka, manisha, vidya, arya (female), abhilash, karun, hitesh (male)
+    hybrid_tts = HybridTTS(
+        english_tts=deepgram.TTS(model="aura-2-luna-en"),
+        hindi_tts=sarvam.TTS(
+            target_language_code="hi-IN",
+            speaker="vidya",  # Change voice here
+        ),
+    )
+    
     # Create the agent session with all plugins
     session = AgentSession(
-        # Speech-to-Text: Deepgram for accurate transcription
+        # Speech-to-Text: Deepgram Nova-3 with multilingual codeswitching
+        # Supports Hindi + English switching in real-time streaming
         stt=deepgram.STT(
-            model="nova-2",
-            language="en",
+            model="nova-3",
+            language="multi",  # Enables Hindi/English codeswitching
         ),
         
         # LLM: Groq for fast inference
@@ -1022,10 +1041,11 @@ async def entrypoint(ctx: agents.JobContext):
             temperature=0.7,
         ),
         
-        # Text-to-Speech: Deepgram for natural voice
-        tts=deepgram.TTS(
-            model="aura-2-luna-en",  # Female voice, natural sounding
-        ),
+        # Text-to-Speech: HybridTTS routes to Deepgram (EN) or Sarvam (HI)
+        # Language is set dynamically based on STT detected language
+        # To change Hindi voice: modify 'speaker' parameter below
+        # Available Hindi voices: anushka, manisha, vidya, arya (female), abhilash, karun, hitesh (male)
+        tts=hybrid_tts,
         
         # Voice Activity Detection: Silero for accurate speech detection
         vad=silero.VAD.load(
@@ -1036,6 +1056,19 @@ async def entrypoint(ctx: agents.JobContext):
         # Turn detection removed to reduce memory usage on Railway
         # The Silero VAD above will still handle speech detection
     )
+    
+    # ============================================================
+    # 🔄 LANGUAGE SWITCHING - Track STT language to switch TTS
+    # ============================================================
+    @session.on("user_input_transcribed")
+    def on_user_transcribed(event):
+        """Track STT detected language and update HybridTTS accordingly."""
+        try:
+            # event contains the transcription with detected language
+            if hasattr(event, 'language') and event.language:
+                hybrid_tts.set_language(event.language)
+        except Exception as e:
+            logger.debug(f"Could not get language from transcript: {e}")
     
     # Start the session with noise cancellation
     await session.start(

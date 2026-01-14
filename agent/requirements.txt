@@ -10,6 +10,10 @@ livekit-plugins-groq~=1.0
 # Deepgram plugin for STT and TTS
 livekit-plugins-deepgram~=1.0
 
+# Sarvam AI plugin for Hindi TTS (official LiveKit plugin)
+# Supports Indian language voice AI with Bulbul TTS model
+livekit-plugins-sarvam
+
 # Noise cancellation for AEC (Acoustic Echo Cancellation)
 livekit-plugins-noise-cancellation~=0.2
 
