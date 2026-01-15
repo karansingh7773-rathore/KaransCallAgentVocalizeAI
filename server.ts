@@ -79,7 +79,7 @@ function generateRoomName(): string {
 // Token endpoint
 app.post('/api/token', async (req, res) => {
     try {
-        const { userName, persona = '', businessDetails = '' } = req.body;
+        const { userName, persona = '', businessDetails = '', language = 'en' } = req.body;
 
         if (!userName) {
             return res.status(400).json({ error: 'userName is required' });
@@ -99,13 +99,14 @@ app.post('/api/token', async (req, res) => {
 
         // Generate unique room name
         const roomName = generateRoomName();
-        console.log(`Creating room: ${roomName} for user: ${userName}`);
+        console.log(`Creating room: ${roomName} for user: ${userName} (language: ${language})`);
 
         // Create metadata for agent
         const metadata = JSON.stringify({
             userName,
             persona,
             businessDetails,
+            language,
         });
 
         // Create access token

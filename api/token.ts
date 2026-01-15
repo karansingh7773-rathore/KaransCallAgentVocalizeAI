@@ -13,6 +13,7 @@ export interface TokenRequest {
     userName: string;
     persona?: string;
     businessDetails?: string;
+    language?: 'en' | 'hi';
 }
 
 export interface TokenResponse {
@@ -75,7 +76,7 @@ export async function createToken(
  * Used by the development server
  */
 export async function handleTokenRequest(body: TokenRequest): Promise<TokenResponse> {
-    const { userName, persona = '', businessDetails = '' } = body;
+    const { userName, persona = '', businessDetails = '', language = 'en' } = body;
 
     if (!userName) {
         throw new Error('userName is required');
@@ -93,6 +94,7 @@ export async function handleTokenRequest(body: TokenRequest): Promise<TokenRespo
         userName,
         persona,
         businessDetails,
+        language,
     });
 
     const token = await createToken(roomName, userName, metadata);

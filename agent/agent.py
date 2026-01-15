@@ -17,7 +17,6 @@ from livekit.plugins import groq
 
 # Sarvam AI plugin for Hindi TTS (official LiveKit plugin)
 from livekit.plugins import sarvam
-from hybrid_tts import HybridTTS
 
 # Tavily for real-time web search
 from tavily import AsyncTavilyClient
@@ -288,6 +287,7 @@ IMPORTANT:
 - DO NOT use markdown formatting, tables, or special characters (like |, -, *, #).
 - DO NOT use lists or bullet points. Speak in natural, conversational sentences.
 - If you need to list items, speak them out clearly (e.g., "We require a report card, passport photo, and birth certificate.") instead of using a list format.
+- These is SIP calling so here in SIP you dont have capabality to show email pop up screen on the call, so ask user to give their email by vocally and then save it to send message.
 """.strip()
 
 
@@ -993,6 +993,7 @@ async def entrypoint(ctx: agents.JobContext):
     # Parse participant metadata for settings (web clients send metadata, phone callers don't)
     metadata = parse_participant_metadata(participant.metadata)
     user_name = metadata.get("userName", "")
+    language = metadata.get("language", "en")  # Default to English
     
     # Track session start time for duration calculation
     session_start_time = datetime.now()
@@ -1019,27 +1020,44 @@ async def entrypoint(ctx: agents.JobContext):
     
     logger.info(f"System prompt length: {len(system_prompt)} chars")
     
-    # Create HybridTTS for automatic language switching
-    # To change Hindi voice: modify 'speaker' parameter below
-    # Available Hindi voices: anushka, manisha, vidya, arya (female), abhilash, karun, hitesh (male)
-    hybrid_tts = HybridTTS(
-        english_tts=deepgram.TTS(model="aura-2-luna-en"),
-        hindi_tts=sarvam.TTS(
-            target_language_code="hi-IN",
-            speaker="vidya",  # Change voice here
-            speech_sample_rate=16000,  # Lower sample rate for faster processing (default 22050)
-            enable_preprocessing=True,  # Better handling of Hindi/English mixed text
-            pace=1.1,  # Slightly faster speech for lower latency
-        ),
+    # ============================================================
+    # 🔊 TTS SELECTION - Based on SIP/language preference
+    # ============================================================
+    # For SIP calls: Always use Sarvam Hindi (Vidhya) - optimized for Indian phone calls
+    # For WebRTC: Use user's language selection from frontend
+    
+    # Create Sarvam TTS (Hindi) with optimized settings
+    hindi_tts = sarvam.TTS(
+        target_language_code="hi-IN",
+        speaker="vidya",
+        speech_sample_rate=16000,
+        enable_preprocessing=True,
+        pace=1.1,
     )
+    
+    # Create Deepgram TTS (English)
+    english_tts = deepgram.TTS(model="aura-2-luna-en")
+    
+    # Select TTS based on call type
+    if is_phone_call:
+        # SIP calls: Always use Hindi (Sarvam) for Indian phone users
+        selected_tts = hindi_tts
+        logger.info("📞 SIP call detected - using Sarvam Hindi TTS (Vidhya)")
+    else:
+        # WebRTC: Use user's language selection
+        if language == "hi":
+            selected_tts = hindi_tts
+            logger.info("🇮🇳 User selected Hindi - using Sarvam TTS")
+        else:
+            selected_tts = english_tts
+            logger.info("🇺🇸 User selected English - using Deepgram TTS")
     
     # Create the agent session with all plugins
     session = AgentSession(
         # Speech-to-Text: Deepgram Nova-3 with multilingual codeswitching
-        # Supports Hindi + English switching in real-time streaming
         stt=deepgram.STT(
             model="nova-3",
-            language="multi",  # Enables Hindi/English codeswitching
+            language="multi",
         ),
         
         # LLM: Groq for fast inference
@@ -1048,34 +1066,16 @@ async def entrypoint(ctx: agents.JobContext):
             temperature=0.7,
         ),
         
-        # Text-to-Speech: HybridTTS routes to Deepgram (EN) or Sarvam (HI)
-        # Language is set dynamically based on STT detected language
-        # To change Hindi voice: modify 'speaker' parameter below
-        # Available Hindi voices: anushka, manisha, vidya, arya (female), abhilash, karun, hitesh (male)
-        tts=hybrid_tts,
+        # Text-to-Speech: Selected based on SIP/language preference
+        tts=selected_tts,
         
-        # Voice Activity Detection: Silero for accurate speech detection
+        # Voice Activity Detection: Silero
         vad=silero.VAD.load(
             min_speech_duration=0.1,
             min_silence_duration=0.3,
         ),
-        
-        # Turn detection removed to reduce memory usage on Railway
-        # The Silero VAD above will still handle speech detection
     )
-    
-    # ============================================================
-    # 🔄 LANGUAGE SWITCHING - Track STT language to switch TTS
-    # ============================================================
-    @session.on("user_input_transcribed")
-    def on_user_transcribed(event):
-        """Track STT detected language and update HybridTTS accordingly."""
-        try:
-            # event contains the transcription with detected language
-            if hasattr(event, 'language') and event.language:
-                hybrid_tts.set_language(event.language)
-        except Exception as e:
-            logger.debug(f"Could not get language from transcript: {e}")
+
     
     # Start the session with noise cancellation
     await session.start(
