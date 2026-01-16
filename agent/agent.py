@@ -1090,7 +1090,7 @@ async def entrypoint(ctx: agents.JobContext):
         # SIP calls: Sarvam STT optimized for Indian languages
         selected_stt = sarvam.STT(
             model="saarika:v2.5",
-            language="hi-IN",  # Hindi with code-switching support
+            language="en-IN",  # English-India: Roman script, understands Indian accent
         )
         logger.info("📞 SIP call - using Sarvam STT (saarika:v2.5) for Indian accent")
     else:
