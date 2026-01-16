@@ -1309,8 +1309,7 @@ if __name__ == "__main__":
     agents.cli.run_app(
         agents.WorkerOptions(
             entrypoint_fnc=entrypoint,
-            # IMPORTANT: Named agent for explicit dispatch (required for SIP telephony)
-            # This must match the agentName in your LiveKit dispatch rule
-            agent_name="vocalize-ai",
+            # NOTE: No agent_name = auto-dispatch to ALL rooms (WebRTC + SIP)
+            # If you need named dispatch for SIP, use a room prefix dispatch rule instead
         )
     )

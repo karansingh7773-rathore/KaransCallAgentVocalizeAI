@@ -8,7 +8,7 @@
 import express from 'express';
 import cors from 'cors';
 import { config } from 'dotenv';
-import { AccessToken } from 'livekit-server-sdk';
+import { AccessToken, AgentDispatchClient } from 'livekit-server-sdk';
 import { google } from 'googleapis';
 
 // Load environment variables
@@ -109,6 +109,21 @@ app.post('/api/token', async (req, res) => {
             language,
         });
 
+        // Initialize AgentDispatchClient for explicit agent dispatch
+        const agentDispatch = new AgentDispatchClient(serverUrl, apiKey, apiSecret);
+
+        // Dispatch the agent to the room
+        // This ensures the 'vocalize-ai' agent joins when the user connects
+        try {
+            const dispatchId = await agentDispatch.createDispatch(roomName, 'vocalize-ai', {
+                metadata: metadata,  // Pass user metadata to agent
+            });
+            console.log(`Agent dispatch created: ${dispatchId} for room: ${roomName}`);
+        } catch (dispatchError: any) {
+            console.error('Agent dispatch failed:', dispatchError);
+            // Continue anyway - the room will still be created, just without agent
+        }
+
         // Create access token
         const token = new AccessToken(apiKey, apiSecret, {
             identity: userName,
@@ -133,6 +148,7 @@ app.post('/api/token', async (req, res) => {
             roomName,
             serverUrl,
         });
+
 
     } catch (error) {
         console.error('Token generation error:', error);
