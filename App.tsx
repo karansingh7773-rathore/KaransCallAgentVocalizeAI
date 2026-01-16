@@ -42,7 +42,7 @@ function App() {
         startCallAudioRef.current = new Audio('/start-call.mp3');
         endCallAudioRef.current = new Audio('/end-call.mp3');
         popupAudioRef.current = new Audio('/popup.mp3');
-        thinkingAudioRef.current = new Audio('/menu-open-sound-effect-432999.mp3');
+        thinkingAudioRef.current = new Audio('/menu-open-sound-effect-432999123.mp3');
 
         // Preload the audio files
         startCallAudioRef.current.preload = 'auto';
