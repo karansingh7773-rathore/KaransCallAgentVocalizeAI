@@ -1081,6 +1081,28 @@ async def entrypoint(ctx: agents.JobContext):
     logger.info(f"System prompt length: {len(system_prompt)} chars")
     
     # ============================================================
+    # 🎤 STT SELECTION - Based on SIP/WebRTC
+    # ============================================================
+    # For SIP calls: Use Sarvam STT for better Indian accent recognition
+    # For WebRTC: Use Deepgram Nova-3 for lower latency
+    
+    if is_phone_call:
+        # SIP calls: Sarvam STT optimized for Indian languages
+        selected_stt = sarvam.STT(
+            model="saarika:v2.5",
+            language_code="hi-IN",  # Hindi with code-switching support
+            sample_rate=16000,
+        )
+        logger.info("📞 SIP call - using Sarvam STT (saarika:v2.5) for Indian accent")
+    else:
+        # WebRTC: Deepgram for faster, lower latency transcription
+        selected_stt = deepgram.STT(
+            model="nova-3",
+            language="multi",
+        )
+        logger.info("🌐 WebRTC - using Deepgram Nova-3 STT")
+    
+    # ============================================================
     # 🔊 TTS SELECTION - Based on SIP/language preference
     # ============================================================
     # For SIP calls: Always use Sarvam Hindi (Vidhya) - optimized for Indian phone calls
@@ -1114,11 +1136,8 @@ async def entrypoint(ctx: agents.JobContext):
     
     # Create the agent session with all plugins
     session = AgentSession(
-        # Speech-to-Text: Deepgram Nova-3 with multilingual codeswitching
-        stt=deepgram.STT(
-            model="nova-3",
-            language="multi",
-        ),
+        # Speech-to-Text: Selected based on SIP/WebRTC
+        stt=selected_stt,
         
         # LLM: Groq for fast inference
         llm=groq.LLM(
@@ -1133,6 +1152,7 @@ async def entrypoint(ctx: agents.JobContext):
         vad=silero.VAD.load(
             min_speech_duration=0.1,
             min_silence_duration=0.3,
+
         ),
     )
 
