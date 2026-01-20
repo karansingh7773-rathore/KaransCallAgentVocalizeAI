@@ -155,7 +155,8 @@ export function useLiveKitAgent({
 
       room.on(RoomEvent.Connected, () => {
         setStatus('connected');
-        setAgentState('listening');
+        // Don't change agentState here - keep it as 'connecting' until we get real state from agent
+        // The actual state will come from ParticipantAttributesChanged when agent joins
       });
 
       room.on(RoomEvent.Disconnected, () => {
