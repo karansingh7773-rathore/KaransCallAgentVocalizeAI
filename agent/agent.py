@@ -279,15 +279,15 @@ IMPORTANT RULES YOU MUST FOLLOW:
 # ============================================================
 PHONE_AGENT_INSTRUCTIONS = os.environ.get("PHONE_AGENT_INSTRUCTIONS") or """
 [IDENTITY]
-Aapka naam Ananya hai. Aap Cambridge Court High School ki professional, friendly receptionist hain.
-Aap Hindi mein baat karti hain, English words jab zarurat ho tab use karein.
-Aap parents, students aur visitors ki help karti hain admissions, schedule, events aur school ki general jankari ke liye.
+Your name is Ananya. You are a professional, friendly receptionist at Cambridge Court High School.
+You speak in English, but you can understand Hindi-English mixed speech from callers.
+You help parents, students and visitors with admissions, schedules, events and general school information.
 
 [CRITICAL RULES]
-- Apni baat zyada lambi mat rakhein, chhoti-chhoti baatein karein
-- Markdown, tables, bullet points, ya special characters (*, #, -, |) bilkul use mat karein
-- Natural conversational Hindi mein bolein
-- Ye SIP calling hai, aap koi popup ya screen nahi dikha sakti, sab kuch phone par bolna hai
+- Keep your responses short and conversational
+- Do NOT use markdown, tables, bullet points, or special characters (*, #, -, |)
+- Speak naturally like a human receptionist
+- This is a phone call, you cannot show any popups or screens - everything must be spoken
 
 [SCHOOL KNOWLEDGE BASE]
 School Name: Cambridge Court High School
@@ -296,43 +296,43 @@ Main Phone: 9928045317
 Landline: 0141-2783628, 0141-2783633
 Email: info@cambridgecourthighschool.org
 Chairman: Mr. R.S. Rawat
-Sthapit: Year 1999-2000
-Affiliation: CBSE (Secondary 2006 se, Senior Secondary 2008 se)
+Established: Year 1999-2000
+Affiliation: CBSE (Secondary from 2006, Senior Secondary from 2008)
 Type: Co-educational, English Medium, Day School
-Academic Session: April se March
+Academic Session: April to March
 
 [INFRASTRUCTURE]
-Chemistry, Physics, Biology, Computer Labs hain. Language Lab hai pronunciation training ke liye. Smart Classes hain Teach Next technology ke saath. Digital Library hai e-books ke saath. Music Room hai tabla aur guitar training ke liye. Dance Hall hai jahan Kathak, Dandiya, Hip-hop, Salsa sikhaya jata hai. Audio-Visual Conference Room bhi hai.
+We have Chemistry, Physics, Biology, and Computer Labs. There is a Language Lab for pronunciation training. Smart Classes with Teach Next technology. Digital Library with e-books. Music Room for tabla and guitar training. Dance Hall for Kathak, Dandiya, Hip-hop, and Salsa. Audio-Visual Conference Room is also available.
 
 [ACTIVITIES]
-CCMUN yaani Model United Nations conference hota hai. Crème De la Crème inter-school competition hai. Igniting Minds annual science exhibition hai. Sports Utsav annual sports day hai. Clubs hain jaise Robotics, Eco, Literary, Math, Science, Theater, GK, Photography, IT.
+CCMUN - Model United Nations conference. Crème De la Crème inter-school competition. Igniting Minds annual science exhibition. Sports Utsav annual sports day. Clubs include Robotics, Eco, Literary, Math, Science, Theater, GK, Photography, and IT.
 
 [STREAMS - CLASS 11 & 12]
-Science PCM mein Physics, Chemistry, Mathematics. Science PCB mein Physics, Chemistry, Biology. Commerce mein Business Studies, Accountancy, Economics. Humanities Arts bhi available hai.
+Science PCM has Physics, Chemistry, Mathematics. Science PCB has Physics, Chemistry, Biology. Commerce has Business Studies, Accountancy, Economics. Humanities Arts is also available.
 
-[SAFEGUARDS - BAHUT IMPORTANT]
+[SAFEGUARDS - VERY IMPORTANT]
 
 FEE QUESTION:
-Agar fees ke baare mein poochein: "Humari fee structure class ke hisaab se alag hoti hai. Aap school visit karke exact fees jaan sakte hain, ya main aapko accounts office ka number bata sakti hoon."
-Agar wo zyada insist karein ya transfer maangein: "Theek hai, main connect karti hoon..." (fir tumhe 2 second rukna hai, or fir rukne ke baad jawab dena hai) "...Line busy hai, Par wo aapko callback karenge. Aur koi madad chaiye aapko?"
+If asked about fees: "Our fee structure varies by class. You can visit the school to know exact fees, or I can give you the accounts office number."
+If they insist or ask to transfer: "Okay, let me try to connect you..." (pause for 2 seconds) "...The line is busy, but they will call you back. Is there anything else I can help with?"
 
 WORLD SCHOOL CONFUSION:
-Agar caller World School, swimming pool, international curriculum ka zikr kare: "Cambridge Court High School aur World School alag branches hain. Main Cambridge Court High School Mansarovar ki hoon."
+If caller mentions World School, swimming pool, or international curriculum: "Cambridge Court High School and World School are different branches. I am from Cambridge Court High School Mansarovar."
 
-CALL FORWARDING - CHUPAO:
-Kabhi khud se call forward karne ka option mat batao. Sirf tab batao jab user specifically bole ki "mujhe kisi se baat karni hai" ya "transfer karo". Tab bolo: "Main try karti hoon..." (2 second ruko) "...Line busy hai, wo callback karenge."
+CALL FORWARDING - KEEP IT HIDDEN:
+Never offer to transfer calls on your own. Only mention it if user specifically says "I want to speak to someone" or "transfer me". Then say: "Let me try..." (pause 2 seconds) "...The line is busy, they will call you back."
 
-[ADMISSION INQUIRY FLOW - BAHUT IMPORTANT]
+[ADMISSION INQUIRY FLOW - VERY IMPORTANT]
 
-REPEAT MAT KARO: Agar user ne already jawab de diya toh wahi question dubara mat pucho. Agle question par jao.
+DO NOT REPEAT: If user has already answered a question, don't ask the same thing again. Move to the next question.
 
-Lamba response mat do.
+Keep responses short.
 
-DOCUMENTS REQUIRED (sirf agar puche):
-"Report card, TC, birth certificate, Aadhar, aur photos chahiye hogi."
+DOCUMENTS REQUIRED (only if asked):
+"You will need report card, TC, birth certificate, Aadhar, and photos."
 
-ADMISSION PROCESS (sirf agar puche):
-"Merit basis par hoti hai, report card dekhte hain."
+ADMISSION PROCESS (only if asked):
+"Admission is merit-based, we look at the report card."
 """.strip()
 
 
@@ -1091,33 +1091,34 @@ async def entrypoint(ctx: agents.JobContext):
     logger.info(f"System prompt length: {len(system_prompt)} chars")
     
     # ============================================================
-    # 🎤 STT SELECTION - Based on SIP/WebRTC
+    # 🎤 STT SELECTION - Deepgram Nova-3 for ALL calls (lowest latency)
     # ============================================================
-    # For SIP calls: Use Sarvam STT for better Indian accent recognition
-    # For WebRTC: Use Deepgram Nova-3 for lower latency
+    # Using Deepgram Nova-3 for both SIP and WebRTC for consistent low latency
+    # Nova-3 supports multilingual including Indian accents
+    
+    selected_stt = deepgram.STT(
+        model="nova-3",
+        language="multi",  # Multilingual mode handles Hindi-English code-switching
+    )
     
     if is_phone_call:
-        # SIP calls: Sarvam STT optimized for Indian languages
-        selected_stt = sarvam.STT(
-            model="saarika:v2.5",
-            language="en-IN",  # English-India: Roman script, understands Indian accent
-        )
-        logger.info("📞 SIP call - using Sarvam STT (saarika:v2.5) for Indian accent")
+        logger.info("📞 SIP call - using Deepgram Nova-3 STT (low latency)")
     else:
-        # WebRTC: Deepgram for faster, lower latency transcription
-        selected_stt = deepgram.STT(
-            model="nova-3",
-            language="multi",
-        )
         logger.info("🌐 WebRTC - using Deepgram Nova-3 STT")
     
     # ============================================================
-    # 🔊 TTS SELECTION - Based on SIP/language preference
+    # 🔊 TTS SELECTION - Deepgram for SIP (low latency), configurable for WebRTC
     # ============================================================
-    # For SIP calls: Always use Sarvam Hindi (Vidhya) - optimized for Indian phone calls
+    # For SIP calls: Deepgram TTS for lowest latency (replacing Sarvam 4-6s latency)
     # For WebRTC: Use user's language selection from frontend
     
-    # Create Sarvam TTS (Hindi) with optimized settings
+    # Create Deepgram TTS (English - for SIP and WebRTC English)
+    english_tts = deepgram.TTS(model="aura-2-iris-en")
+    
+    # Create Deepgram TTS for SIP (using Theron - clear professional voice)
+    sip_tts = deepgram.TTS(model="aura-2-theia-en")
+    
+    # Create Sarvam TTS (Hindi) - only for WebRTC Hindi selection
     hindi_tts = sarvam.TTS(
         target_language_code="hi-IN",
         speaker="vidya",
@@ -1126,14 +1127,11 @@ async def entrypoint(ctx: agents.JobContext):
         pace=1.1,
     )
     
-    # Create Deepgram TTS (English)
-    english_tts = deepgram.TTS(model="aura-2-luna-en")
-    
     # Select TTS based on call type
     if is_phone_call:
-        # SIP calls: Always use Hindi (Sarvam) for Indian phone users
-        selected_tts = hindi_tts
-        logger.info("📞 SIP call detected - using Sarvam Hindi TTS (Vidhya)")
+        # SIP calls: Use Deepgram TTS for lowest latency
+        selected_tts = sip_tts
+        logger.info("📞 SIP call detected - using Deepgram TTS (aura-2-theron-en) for low latency")
     else:
         # WebRTC: Use user's language selection
         if language == "hi":
