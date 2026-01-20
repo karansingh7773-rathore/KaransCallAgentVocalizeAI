@@ -1041,34 +1041,33 @@ async def entrypoint(ctx: agents.JobContext):
     logger.info(f"System prompt length: {len(system_prompt)} chars")
     
     # ============================================================
-    # 🎤 STT SELECTION - Deepgram Nova-3 for ALL calls (lowest latency)
+    # 🎤 STT SELECTION - Based on SIP/WebRTC
     # ============================================================
-    # Using Deepgram Nova-3 for both SIP and WebRTC for consistent low latency
-    # Nova-3 supports multilingual including Indian accents
-    
-    selected_stt = deepgram.STT(
-        model="nova-3",
-        language="multi",  # Multilingual mode handles Hindi-English code-switching
-    )
+    # For SIP calls: Use Sarvam STT for better Indian accent recognition
+    # For WebRTC: Use Deepgram Nova-3 for lower latency
     
     if is_phone_call:
-        logger.info("📞 SIP call - using Deepgram Nova-3 STT (low latency)")
+        # SIP calls: Sarvam STT optimized for Indian languages
+        selected_stt = sarvam.STT(
+            model="saarika:v2.5",
+            language="en-IN",  # English-India: Roman script, understands Indian accent
+        )
+        logger.info("📞 SIP call - using Sarvam STT (saarika:v2.5) for Indian accent")
     else:
+        # WebRTC: Deepgram for faster, lower latency transcription
+        selected_stt = deepgram.STT(
+            model="nova-3",
+            language="multi",
+        )
         logger.info("🌐 WebRTC - using Deepgram Nova-3 STT")
     
     # ============================================================
-    # 🔊 TTS SELECTION - Deepgram for SIP (low latency), configurable for WebRTC
+    # 🔊 TTS SELECTION - Based on SIP/language preference
     # ============================================================
-    # For SIP calls: Deepgram TTS for lowest latency (replacing Sarvam 4-6s latency)
+    # For SIP calls: Always use Sarvam Hindi (Vidhya) - optimized for Indian phone calls
     # For WebRTC: Use user's language selection from frontend
     
-    # Create Deepgram TTS (English - for SIP and WebRTC English)
-    english_tts = deepgram.TTS(model="aura-2-iris-en")
-    
-    # Create Deepgram TTS for SIP (using Theron - clear professional voice)
-    sip_tts = deepgram.TTS(model="aura-2-theia-en")
-    
-    # Create Sarvam TTS (Hindi) - only for WebRTC Hindi selection
+    # Create Sarvam TTS (Hindi) with optimized settings
     hindi_tts = sarvam.TTS(
         target_language_code="hi-IN",
         speaker="vidya",
@@ -1077,11 +1076,14 @@ async def entrypoint(ctx: agents.JobContext):
         pace=1.1,
     )
     
+    # Create Deepgram TTS (English)
+    english_tts = deepgram.TTS(model="aura-2-iris-en")
+    
     # Select TTS based on call type
     if is_phone_call:
-        # SIP calls: Use Deepgram TTS for lowest latency
-        selected_tts = sip_tts
-        logger.info("📞 SIP call detected - using Deepgram TTS (aura-2-theron-en) for low latency")
+        # SIP calls: Always use Hindi (Sarvam) for Indian phone users
+        selected_tts = hindi_tts
+        logger.info("📞 SIP call detected - using Sarvam Hindi TTS (Vidhya)")
     else:
         # WebRTC: Use user's language selection
         if language == "hi":
