@@ -17,7 +17,6 @@ interface UseLiveKitAgentProps {
   agentPersona: string;
   businessDetails: string;
   userName: string;
-  language: 'en' | 'hi';
 }
 
 interface UseLiveKitAgentReturn {
@@ -41,7 +40,6 @@ export function useLiveKitAgent({
   agentPersona,
   businessDetails,
   userName,
-  language,
 }: UseLiveKitAgentProps): UseLiveKitAgentReturn {
   // State - keep same order as before
   const [status, setStatus] = useState<AppConnectionState>('disconnected');
@@ -142,7 +140,7 @@ export function useLiveKitAgent({
       const response = await fetch(TOKEN_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userName, persona: agentPersona, businessDetails, language }),
+        body: JSON.stringify({ userName, persona: agentPersona, businessDetails }),
       });
 
       if (!response.ok) throw new Error('Failed to get token');
@@ -261,7 +259,7 @@ export function useLiveKitAgent({
       setAgentState('disconnected');
       cleanup();
     }
-  }, [serverUrl, agentPersona, businessDetails, userName, language, cleanup, setupAudioVisualization]);
+  }, [serverUrl, agentPersona, businessDetails, userName, cleanup, setupAudioVisualization]);
 
   const disconnect = useCallback(() => {
     cleanup();

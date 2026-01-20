@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Settings, Phone, PhoneOff, Github, X, Save, User, Briefcase, ArrowRight, Mail, Globe } from 'lucide-react';
+import { Settings, Phone, PhoneOff, Github, X, Save, User, Briefcase, ArrowRight, Mail } from 'lucide-react';
 import { DiYii } from "react-icons/di";
 import { useLiveKitAgent } from './hooks/useLiveKitAgent';
 import AudioVisualizer from './components/AudioVisualizer';
@@ -27,9 +27,7 @@ function App() {
     // Email input popup state
     const [tempEmail, setTempEmail] = useState('');
 
-    // Language selection state - persisted to localStorage
-    const [selectedLanguage, setSelectedLanguage] = useState<'en' | 'hi'>('en');
-    const [isLanguageModalOpen, setIsLanguageModalOpen] = useState(false);
+    // Language selection removed - WebRTC uses Deepgram only
 
     // Audio refs for sound effects
     const startCallAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -93,11 +91,6 @@ function App() {
             setTempBusinessDetails(savedBusiness);
         }
 
-        // Load language preference
-        const savedLanguage = localStorage.getItem('vocalize_language') as 'en' | 'hi' | null;
-        if (savedLanguage) {
-            setSelectedLanguage(savedLanguage);
-        }
     }, []);
 
     const {
@@ -117,7 +110,6 @@ function App() {
         agentPersona,
         businessDetails,
         userName,
-        language: selectedLanguage,
     });
 
     // Play popup sound when email popup opens
@@ -229,9 +221,11 @@ function App() {
 
     // Get status display text
     const getStatusText = () => {
+        // Show Connecting when status is 'connecting' OR agentState is 'connecting'
+        if (status === 'connecting' || agentState === 'connecting') {
+            return 'Connecting...';
+        }
         switch (agentState) {
-            case 'connecting':
-                return 'Connecting...';
             case 'listening':
                 return 'Listening...';
             case 'thinking':
@@ -268,11 +262,12 @@ function App() {
                 </div>
 
                 <div className="flex items-center gap-6">
-                    {status === 'connected' && (
+                    {(status === 'connected' || status === 'connecting') && (
                         <div className="flex items-center gap-2 text-xs font-semibold text-stone-500 uppercase tracking-widest animate-pulse">
-                            <span className={`w-2 h-2 rounded-full ${agentState === 'speaking' ? 'bg-rose-500' :
-                                agentState === 'thinking' ? 'bg-amber-500' :
-                                    'bg-emerald-500'
+                            <span className={`w-2 h-2 rounded-full ${status === 'connecting' ? 'bg-amber-500' :
+                                agentState === 'speaking' ? 'bg-rose-500' :
+                                    agentState === 'thinking' ? 'bg-amber-500' :
+                                        'bg-emerald-500'
                                 }`}></span>
                             {getStatusText()}
                         </div>
@@ -283,16 +278,6 @@ function App() {
                     >
                         <Settings className="text-stone-400 group-hover:text-rose-400 transition-transform group-hover:rotate-90 duration-500" size={24} />
                         {status === 'connected' && <span className="absolute right-0 top-0 w-2 h-2 bg-rose-500 rounded-full"></span>}
-                    </button>
-                    <button
-                        onClick={() => setIsLanguageModalOpen(true)}
-                        className="p-2 rounded-full hover:bg-stone-800 transition-colors group relative"
-                        title="Select Language"
-                    >
-                        <Globe className="text-stone-400 group-hover:text-rose-400 transition-transform group-hover:rotate-90 duration-500" size={24} />
-                        <span className="absolute -bottom-1 -right-1 text-[10px] font-bold bg-stone-800 rounded px-1 text-stone-300">
-                            {selectedLanguage === 'hi' ? 'हि' : 'EN'}
-                        </span>
                     </button>
                 </div>
             </header>
@@ -591,79 +576,7 @@ function App() {
                 </div>
             )}
 
-            {/* Language Selection Modal */}
-            {isLanguageModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-scale-in">
-                    <div className="relative z-10 w-full max-w-[320px] bg-[#1a1a1a] border border-stone-800 rounded-[28px] shadow-2xl overflow-hidden">
-                        {/* Close Button */}
-                        <button
-                            onClick={() => setIsLanguageModalOpen(false)}
-                            className="absolute top-4 right-4 z-20 w-8 h-8 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-full flex items-center justify-center transition-colors"
-                        >
-                            <X className="text-stone-400 hover:text-stone-200" size={16} />
-                        </button>
 
-                        <div className="p-8 flex flex-col items-center space-y-6">
-                            {/* Icon */}
-                            <div className="w-10 h-10 rounded-xl bg-stone-800/50 flex items-center justify-center border border-stone-700/50">
-                                <Globe className="text-rose-400" size={18} strokeWidth={1.5} />
-                            </div>
-
-                            {/* Text */}
-                            <div className="text-center space-y-1.5">
-                                <h2 className="text-2xl font-heading text-stone-200 tracking-wide">Select Language</h2>
-                                <p className="text-[11px] text-stone-500 font-medium max-w-[200px] mx-auto leading-relaxed">
-                                    Choose your preferred voice language
-                                </p>
-                            </div>
-
-                            {/* Language Options */}
-                            <div className="w-full space-y-3">
-                                <button
-                                    onClick={() => {
-                                        setSelectedLanguage('en');
-                                        localStorage.setItem('vocalize_language', 'en');
-                                        setIsLanguageModalOpen(false);
-                                    }}
-                                    className={`w-full py-3 px-4 rounded-lg font-medium transition-all flex items-center justify-between ${selectedLanguage === 'en'
-                                        ? 'bg-rose-500/20 border-2 border-rose-500 text-rose-400'
-                                        : 'bg-stone-800/50 border-2 border-stone-700 text-stone-300 hover:border-stone-600'
-                                        }`}
-                                >
-                                    <span>English</span>
-                                    {selectedLanguage === 'en' && (
-                                        <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                                    )}
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setSelectedLanguage('hi');
-                                        localStorage.setItem('vocalize_language', 'hi');
-                                        setIsLanguageModalOpen(false);
-                                    }}
-                                    className={`w-full py-3 px-4 rounded-lg font-medium transition-all flex items-center justify-between ${selectedLanguage === 'hi'
-                                        ? 'bg-rose-500/20 border-2 border-rose-500 text-rose-400'
-                                        : 'bg-stone-800/50 border-2 border-stone-700 text-stone-300 hover:border-stone-600'
-                                        }`}
-                                >
-                                    <span>हिंदी</span>
-                                    {selectedLanguage === 'hi' && (
-                                        <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                                    )}
-                                </button>
-                            </div>
-
-                            {status === 'connected' && (
-                                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 w-full">
-                                    <p className="text-amber-400 text-xs">
-                                        ⚠️ Settings will apply to your next call. End the current call and start a new one to use updated settings.
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
         </>
     );
 }

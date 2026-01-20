@@ -765,13 +765,38 @@ class VocalizeAgent(Agent):
         try:
             logger.info(f"Extracting content from: {url}")
             
+            # Send tool_use message to frontend (for sound effect)
+            try:
+                job_ctx = get_job_context()
+                if job_ctx:
+                    data = json.dumps({"type": "tool_use", "tool": "read_webpage"}).encode()
+                    await job_ctx.room.local_participant.publish_data(data, reliable=True)
+                    logger.info("Sent tool_use notification to frontend for read_webpage")
+            except Exception as e:
+                logger.debug(f"Could not send tool_use notification: {e}")
+            
             # Use Tavily extract to get page content
             response = await tavily_client.extract(urls=[url])
             
             # Extract the content
             results = response.get("results", [])
             if results and len(results) > 0:
-                content = results[0].get("raw_content", "")
+                result_item = results[0]
+                content = result_item.get("raw_content", "")
+                
+                # Send source to frontend via data channel (for favicon display)
+                try:
+                    job_ctx = get_job_context()
+                    if job_ctx:
+                        # Extract title from response or use URL as fallback
+                        title = result_item.get("title", url)
+                        sources = [{"url": url, "title": title}]
+                        data = json.dumps({"type": "search_sources", "sources": sources}).encode()
+                        await job_ctx.room.local_participant.publish_data(data, reliable=True)
+                        logger.info(f"Sent webpage source to frontend: {url}")
+                except Exception as e:
+                    logger.error(f"Failed to send source to frontend: {e}")
+                
                 if content:
                     # Limit content length for voice response
                     if len(content) > 2000:
