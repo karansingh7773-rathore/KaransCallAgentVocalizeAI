@@ -1070,7 +1070,7 @@ async def entrypoint(ctx: agents.JobContext):
     # Create Sarvam TTS (Hindi) with optimized settings
     hindi_tts = sarvam.TTS(
         target_language_code="hi-IN",
-        speaker="vidya",
+        speaker="Manisha",
         speech_sample_rate=16000,
         enable_preprocessing=True,
         pace=1.1,
