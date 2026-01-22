@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as PIXI from 'pixi.js';
 
 // CRITICAL: Expose PIXI to window BEFORE importing Live2DModel
@@ -19,33 +19,39 @@ const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentS
     const containerRef = useRef<HTMLDivElement>(null);
     const appRef = useRef<PIXI.Application | null>(null);
     const modelRef = useRef<any>(null);
-    const mountIdRef = useRef<number>(0); // Track mount instance
+    const mountIdRef = useRef<number>(0);
     const [modelLoaded, setModelLoaded] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Animation refs
     const smoothedVolumeRef = useRef<number>(0);
     const animationFrameRef = useRef<number | null>(null);
+    const isSpeakingMotionRef = useRef(false);
+
+    // NEW: Enhanced animation refs
+    const breathingPhaseRef = useRef<number>(0);
+    const headSwayPhaseRef = useRef<number>(0);
+    const nextBlinkTimeRef = useRef<number>(0);
+    const blinkProgressRef = useRef<number>(-1); // -1 = not blinking
+    const lastTimeRef = useRef<number>(performance.now());
+    const currentExpressionRef = useRef<string | null>(null);
 
     // Initialize PixiJS and load the model
     useEffect(() => {
         if (!containerRef.current) return;
 
-        // Increment mount ID - only the latest mount will render
         const currentMountId = ++mountIdRef.current;
-        
-        // Small delay to ensure the container has been laid out
+
         const initTimer = setTimeout(() => {
             if (!containerRef.current) return;
-            if (currentMountId !== mountIdRef.current) return; // Check if still current
-            
+            if (currentMountId !== mountIdRef.current) return;
+
             const container = containerRef.current;
-            
-            // Use window dimensions as fallback - container might not have dimensions yet
             const width = container.clientWidth || window.innerWidth || 800;
             const height = container.clientHeight || window.innerHeight || 600;
-            
+
             console.log(`Canvas dimensions: ${width}x${height}`);
 
-            // Create canvas element
             const canvas = document.createElement('canvas');
             canvas.style.position = 'absolute';
             canvas.style.top = '0';
@@ -54,7 +60,6 @@ const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentS
             canvas.style.height = '100%';
             container.appendChild(canvas);
 
-            // Initialize Pixi Application
             const app = new PIXI.Application({
                 view: canvas,
                 width,
@@ -66,116 +71,97 @@ const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentS
 
             appRef.current = app;
 
-            // Load Model
             const modelPath = '/models/huohuo/huohuo.model3.json';
 
             Live2DModel.from(modelPath).then((model) => {
-            // Check if this is still the current mount
-            if (currentMountId !== mountIdRef.current) {
-                console.log(`Mount ${currentMountId} superseded by ${mountIdRef.current}, discarding model`);
-                model.destroy();
-                return;
-            }
+                if (currentMountId !== mountIdRef.current) {
+                    console.log(`Mount ${currentMountId} superseded, discarding model`);
+                    model.destroy();
+                    return;
+                }
 
-            // Check if app is still valid
-            if (!appRef.current || !appRef.current.stage) {
-                console.warn("App no longer valid, discarding model");
-                model.destroy();
-                return;
-            }
+                if (!appRef.current || !appRef.current.stage) {
+                    console.warn("App no longer valid, discarding model");
+                    model.destroy();
+                    return;
+                }
 
-            modelRef.current = model;
-            
-            // Cast to any to access PIXI.Container properties not exposed in Live2DModel types
-            const modelAny = model as any;
+                modelRef.current = model;
+                const modelAny = model as any;
 
-            // Calculate scale to fit - aim for model to take up most of the height
-            const modelWidth = modelAny.width || 800;
-            const modelHeight = modelAny.height || 600;
-            
-            // Scale to fit 80% of the canvas height
-            const targetHeight = height * 0.85;
-            const scale = targetHeight / modelHeight;
+                const modelWidth = modelAny.width || 800;
+                const modelHeight = modelAny.height || 600;
+                const targetHeight = height * 0.85;
+                const scale = targetHeight / modelHeight;
 
-            console.log(`Model original size: ${modelWidth}x${modelHeight}`);
-            console.log(`Canvas: ${width}x${height}, Target height: ${targetHeight}`);
-            console.log(`Scale: ${scale}`);
+                console.log(`Model size: ${modelWidth}x${modelHeight}, Scale: ${scale}`);
 
-            modelAny.scale.set(scale);
-            // Position at center horizontally, and slightly lower to show full character
-            modelAny.anchor.set(0.5, 0.5);
-            modelAny.position.set(width / 2, height * 0.55);
+                modelAny.scale.set(scale);
+                modelAny.anchor.set(0.5, 0.5);
+                modelAny.position.set(width / 2, height * 0.55);
 
-            console.log('Live2D model loaded successfully!');
-            console.log(`Model final scale: ${modelAny.scale?.x}, position: (${modelAny.position?.x}, ${modelAny.position?.y})`);
+                app.stage.addChild(model as unknown as PIXI.DisplayObject);
 
-            // Add to stage
-            app.stage.addChild(model as unknown as PIXI.DisplayObject);
+                // Start idle motion
+                try {
+                    model.motion('Idle', 0, MotionPriority.IDLE);
+                    console.log('Started idle motion');
 
-            // Start idle motion - this will loop automatically
-            try {
-                // Start the first idle motion (MotionPriority.IDLE = 1)
-                model.motion('Idle', 0, MotionPriority.IDLE);
-                console.log('Started idle motion');
-                
-                // Set up motion finished callback to play random idle motions
-                model.on('motionFinish', (group: string, index: number, audio: any) => {
-                    if (group === 'Idle') {
-                        // Play a random idle motion
-                        const randomIndex = Math.floor(Math.random() * 3);
-                        model.motion('Idle', randomIndex, MotionPriority.IDLE);
-                    }
-                });
-            } catch (err) {
-                console.warn('Could not start idle motion:', err);
-            }
+                    model.on('motionFinish', (group: string) => {
+                        if (group === 'Idle') {
+                            const randomIndex = Math.floor(Math.random() * 3);
+                            model.motion('Idle', randomIndex, MotionPriority.IDLE);
+                        }
+                    });
+                } catch (err) {
+                    console.warn('Could not start idle motion:', err);
+                }
 
-            // Mouse tracking for eye follow
-            const onMouseMove = (e: MouseEvent) => {
-                if (!modelRef.current) return;
-                const rect = container.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                modelRef.current.focus(x, y);
-            };
-            container.addEventListener('mousemove', onMouseMove);
-            
-            // Click to trigger random motion
-            const onClick = () => {
-                if (!modelRef.current) return;
-                const randomIndex = Math.floor(Math.random() * 3);
-                modelRef.current.motion('TapBody', randomIndex);
-            };
-            container.addEventListener('click', onClick);
+                // Mouse tracking for eye follow
+                const onMouseMove = (e: MouseEvent) => {
+                    if (!modelRef.current) return;
+                    const rect = container.getBoundingClientRect();
+                    modelRef.current.focus(e.clientX - rect.left, e.clientY - rect.top);
+                };
+                container.addEventListener('mousemove', onMouseMove);
 
-            setModelLoaded(true);
-            setError(null);
+                // Click to trigger random interaction motion
+                const onClick = () => {
+                    if (!modelRef.current) return;
+                    const randomIndex = Math.floor(Math.random() * 3);
+                    modelRef.current.motion('TapBody', randomIndex);
+                };
+                container.addEventListener('click', onClick);
 
-        }).catch((err) => {
-            if (currentMountId !== mountIdRef.current) return; // Ignore errors from old mounts
-            console.error('Failed to load Live2D model:', err);
-            setError(err instanceof Error ? err.message : 'Failed to load avatar');
-        });
-        
-        }, 100); // End of setTimeout callback
+                // Initialize blink timer
+                nextBlinkTimeRef.current = performance.now() + 2000 + Math.random() * 3000;
 
-        // Cleanup
+                setModelLoaded(true);
+                setError(null);
+                console.log('Live2D model loaded with enhanced animations!');
+
+            }).catch((err) => {
+                if (currentMountId !== mountIdRef.current) return;
+                console.error('Failed to load Live2D model:', err);
+                setError(err instanceof Error ? err.message : 'Failed to load avatar');
+            });
+
+        }, 100);
+
         return () => {
             clearTimeout(initTimer);
-            // Don't increment mountId here - let the new mount do it
             if (animationFrameRef.current) {
                 cancelAnimationFrame(animationFrameRef.current);
                 animationFrameRef.current = null;
             }
             if (modelRef.current) {
-                try { modelRef.current.destroy(); } catch {}
+                try { modelRef.current.destroy(); } catch { }
                 modelRef.current = null;
             }
             if (appRef.current) {
-                try { appRef.current.destroy(true, { children: true }); } catch {}
+                try { appRef.current.destroy(true, { children: true }); } catch { }
                 appRef.current = null;
             }
-            // Remove canvas from container
             if (containerRef.current) {
                 while (containerRef.current.firstChild) {
                     containerRef.current.removeChild(containerRef.current.firstChild);
@@ -185,19 +171,42 @@ const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentS
         };
     }, []);
 
-    // Track if currently in speaking motion
-    const isSpeakingMotionRef = useRef(false);
-
-    // Trigger speaking motion and expression when agent starts speaking
+    // Expression changes based on agent state
     useEffect(() => {
         if (!modelLoaded || !modelRef.current) return;
 
         const model = modelRef.current;
-        
+
+        try {
+            if (agentState === 'thinking' && currentExpressionRef.current !== 'qizi1') {
+                // Show curious/thinking expression
+                model.expression('qizi1');
+                currentExpressionRef.current = 'qizi1';
+                console.log('Set thinking expression: qizi1');
+            } else if (agentState === 'speaking' && currentExpressionRef.current !== null) {
+                // Reset to default expression when speaking
+                model.expression();
+                currentExpressionRef.current = null;
+                console.log('Reset to default expression');
+            } else if (agentState === 'listening' && currentExpressionRef.current !== null) {
+                // Neutral attentive expression
+                model.expression();
+                currentExpressionRef.current = null;
+            }
+        } catch (err) {
+            console.warn('Could not set expression:', err);
+        }
+    }, [agentState, modelLoaded]);
+
+    // Speaking motion trigger
+    useEffect(() => {
+        if (!modelLoaded || !modelRef.current) return;
+
+        const model = modelRef.current;
+
         if (agentState === 'speaking' && !isSpeakingMotionRef.current) {
             isSpeakingMotionRef.current = true;
             try {
-                // Play a speaking motion (MotionPriority.NORMAL = 2 to override idle)
                 const speakIndex = Math.floor(Math.random() * 2);
                 model.motion('Speak', speakIndex, MotionPriority.NORMAL);
                 console.log('Playing speak motion');
@@ -207,7 +216,6 @@ const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentS
         } else if (agentState !== 'speaking' && isSpeakingMotionRef.current) {
             isSpeakingMotionRef.current = false;
             try {
-                // Return to idle motion
                 const idleIndex = Math.floor(Math.random() * 3);
                 model.motion('Idle', idleIndex, MotionPriority.IDLE);
                 console.log('Returning to idle motion');
@@ -217,38 +225,115 @@ const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentS
         }
     }, [agentState, modelLoaded]);
 
-    // Lip-sync animation loop
+    // Main animation loop with all enhancements
     useEffect(() => {
         if (!isConnected || !modelLoaded) return;
 
-        const updateLipSync = () => {
-            if (!modelRef.current?.internalModel?.coreModel) {
-                animationFrameRef.current = requestAnimationFrame(updateLipSync);
+        const updateAnimations = () => {
+            const model = modelRef.current;
+            if (!model?.internalModel?.coreModel) {
+                animationFrameRef.current = requestAnimationFrame(updateAnimations);
                 return;
             }
 
-            // Only open mouth when speaking
-            let targetVolume = 0;
-            if (agentState === 'speaking') {
-                targetVolume = Math.min(1, (volume / 80) * 1.2);
+            const coreModel = model.internalModel.coreModel;
+            const now = performance.now();
+            const deltaTime = (now - lastTimeRef.current) / 1000; // seconds
+            lastTimeRef.current = now;
+
+            try {
+                // === 1. BREATHING ANIMATION ===
+                breathingPhaseRef.current += deltaTime * 0.8; // Slow breathing
+                const breathValue = Math.sin(breathingPhaseRef.current) * 0.5 + 0.5;
+                if (coreModel.setParameterValueById) {
+                    coreModel.setParameterValueById('ParamBreath', breathValue);
+                }
+
+                // === 2. LIP-SYNC WITH MOUTH FORM ===
+                let targetVolume = 0;
+                let targetMouthForm = 0;
+
+                if (agentState === 'speaking') {
+                    // Mouth opening based on volume
+                    targetVolume = Math.min(1, (volume / 70) * 1.3);
+
+                    // Vary mouth shape during speech for more natural look
+                    headSwayPhaseRef.current += deltaTime * 4;
+                    targetMouthForm = Math.sin(headSwayPhaseRef.current * 1.5) * 0.3;
+                }
+
+                // Smooth volume transitions
+                const smoothing = 0.3;
+                smoothedVolumeRef.current += (targetVolume - smoothedVolumeRef.current) * smoothing;
+
+                if (coreModel.setParameterValueById) {
+                    coreModel.setParameterValueById('ParamMouthOpenY', smoothedVolumeRef.current);
+                    coreModel.setParameterValueById('ParamMouthForm', targetMouthForm);
+                }
+
+                // === 3. HEAD/BODY MOVEMENT DURING SPEECH ===
+                if (agentState === 'speaking') {
+                    // Subtle head movements synced with speech
+                    const swayX = Math.sin(headSwayPhaseRef.current * 0.7) * 4; // Left-right
+                    const swayZ = Math.sin(headSwayPhaseRef.current * 0.5) * 3; // Tilt
+                    const bodySwayZ = Math.sin(headSwayPhaseRef.current * 0.3) * 2; // Body sway
+
+                    if (coreModel.setParameterValueById) {
+                        // Add to existing angle values (don't override completely)
+                        coreModel.setParameterValueById('ParamAngleX', swayX);
+                        coreModel.setParameterValueById('ParamAngleZ', swayZ);
+                        coreModel.setParameterValueById('ParamBodyAngleZ', bodySwayZ);
+                    }
+                } else {
+                    // Reset to neutral when not speaking
+                    if (coreModel.setParameterValueById) {
+                        // Smoothly return to center
+                        const currentX = coreModel.getParameterValueById?.('ParamAngleX') || 0;
+                        const currentZ = coreModel.getParameterValueById?.('ParamAngleZ') || 0;
+                        coreModel.setParameterValueById('ParamAngleX', currentX * 0.95);
+                        coreModel.setParameterValueById('ParamAngleZ', currentZ * 0.95);
+                        coreModel.setParameterValueById('ParamBodyAngleZ', 0);
+                    }
+                }
+
+                // === 4. RANDOM EYE BLINKS ===
+                if (blinkProgressRef.current < 0) {
+                    // Not blinking - check if it's time to blink
+                    if (now >= nextBlinkTimeRef.current) {
+                        blinkProgressRef.current = 0; // Start blink
+                        nextBlinkTimeRef.current = now + 3000 + Math.random() * 4000; // Next blink in 3-7 seconds
+                    }
+                } else {
+                    // Currently blinking
+                    blinkProgressRef.current += deltaTime * 8; // Blink duration ~0.25 seconds
+
+                    let eyeOpen = 1;
+                    if (blinkProgressRef.current < 0.5) {
+                        // Closing eyes
+                        eyeOpen = 1 - (blinkProgressRef.current * 2);
+                    } else if (blinkProgressRef.current < 1) {
+                        // Opening eyes
+                        eyeOpen = (blinkProgressRef.current - 0.5) * 2;
+                    } else {
+                        // Blink complete
+                        blinkProgressRef.current = -1;
+                        eyeOpen = 1;
+                    }
+
+                    if (coreModel.setParameterValueById) {
+                        coreModel.setParameterValueById('ParamEyeLOpen', eyeOpen);
+                        coreModel.setParameterValueById('ParamEyeROpen', eyeOpen);
+                    }
+                }
+
+            } catch (err) {
+                // Silently handle parameter errors
             }
 
-            // Smooth the volume
-            const smoothing = 0.25;
-            smoothedVolumeRef.current += (targetVolume - smoothedVolumeRef.current) * smoothing;
-
-            // Try to set mouth parameter
-            try {
-                const coreModel = modelRef.current.internalModel.coreModel;
-                if (coreModel?.setParameterValueById) {
-                    coreModel.setParameterValueById('ParamMouthOpenY', smoothedVolumeRef.current);
-                }
-            } catch {}
-
-            animationFrameRef.current = requestAnimationFrame(updateLipSync);
+            animationFrameRef.current = requestAnimationFrame(updateAnimations);
         };
 
-        animationFrameRef.current = requestAnimationFrame(updateLipSync);
+        animationFrameRef.current = requestAnimationFrame(updateAnimations);
 
         return () => {
             if (animationFrameRef.current) {
@@ -263,16 +348,15 @@ const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentS
             {/* Solid Background with subtle gradient */}
             <div className="absolute inset-0 bg-gradient-to-b from-teal-900/20 via-stone-950 to-stone-950" />
 
-            {/* Decorative glow */}
+            {/* Decorative glow that responds to agent state */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div
-                    className={`w-96 h-96 rounded-full blur-3xl transition-all duration-500 ${
-                        agentState === 'speaking'
+                    className={`w-96 h-96 rounded-full blur-3xl transition-all duration-500 ${agentState === 'speaking'
                             ? 'bg-teal-500/20 scale-110'
                             : agentState === 'thinking'
-                            ? 'bg-amber-500/15 scale-100 animate-pulse'
-                            : 'bg-teal-600/10 scale-100'
-                    }`}
+                                ? 'bg-amber-500/15 scale-100 animate-pulse'
+                                : 'bg-teal-600/10 scale-100'
+                        }`}
                 />
             </div>
 
@@ -306,24 +390,23 @@ const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentS
             <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20">
                 <div className="flex items-center gap-2 bg-stone-900/80 backdrop-blur-sm rounded-full px-4 py-2 border border-stone-800">
                     <span
-                        className={`w-2 h-2 rounded-full ${
-                            agentState === 'speaking'
+                        className={`w-2 h-2 rounded-full ${agentState === 'speaking'
                                 ? 'bg-teal-400 animate-pulse'
                                 : agentState === 'thinking'
-                                ? 'bg-amber-400 animate-pulse'
-                                : agentState === 'listening'
-                                ? 'bg-emerald-400'
-                                : 'bg-stone-500'
-                        }`}
+                                    ? 'bg-amber-400 animate-pulse'
+                                    : agentState === 'listening'
+                                        ? 'bg-emerald-400'
+                                        : 'bg-stone-500'
+                            }`}
                     />
                     <span className="text-xs text-stone-400 font-medium uppercase tracking-wider">
                         {agentState === 'speaking'
                             ? 'Speaking'
                             : agentState === 'thinking'
-                            ? 'Thinking'
-                            : agentState === 'listening'
-                            ? 'Listening'
-                            : 'Ready'}
+                                ? 'Thinking'
+                                : agentState === 'listening'
+                                    ? 'Listening'
+                                    : 'Ready'}
                     </span>
                 </div>
             </div>
