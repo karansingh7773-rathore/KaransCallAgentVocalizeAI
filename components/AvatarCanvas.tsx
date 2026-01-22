@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as PIXI from 'pixi.js';
+import { getModelPath, DEFAULT_MODEL_ID } from './avatarModels';
 
 // CRITICAL: Expose PIXI to window BEFORE importing Live2DModel
 if (typeof window !== 'undefined') {
@@ -13,9 +14,10 @@ interface AvatarCanvasProps {
     volume: number;
     isConnected: boolean;
     agentState: 'disconnected' | 'connecting' | 'listening' | 'thinking' | 'speaking';
+    modelId?: string; // Optional model ID - defaults to huohuo
 }
 
-const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentState }) => {
+const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentState, modelId = DEFAULT_MODEL_ID }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const appRef = useRef<PIXI.Application | null>(null);
     const modelRef = useRef<any>(null);
@@ -71,7 +73,9 @@ const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentS
 
             appRef.current = app;
 
-            const modelPath = '/models/huohuo/huohuo.model3.json';
+            // Use model registry to get the correct path
+            const modelPath = getModelPath(modelId);
+            console.log(`Loading model: ${modelId} from ${modelPath}`);
 
             Live2DModel.from(modelPath).then((model) => {
                 if (currentMountId !== mountIdRef.current) {
@@ -169,7 +173,7 @@ const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentS
             }
             setModelLoaded(false);
         };
-    }, []);
+    }, [modelId]); // Reload when modelId changes
 
     // Expression changes based on agent state
     useEffect(() => {
@@ -352,10 +356,10 @@ const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentS
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div
                     className={`w-96 h-96 rounded-full blur-3xl transition-all duration-500 ${agentState === 'speaking'
-                            ? 'bg-teal-500/20 scale-110'
-                            : agentState === 'thinking'
-                                ? 'bg-amber-500/15 scale-100 animate-pulse'
-                                : 'bg-teal-600/10 scale-100'
+                        ? 'bg-teal-500/20 scale-110'
+                        : agentState === 'thinking'
+                            ? 'bg-amber-500/15 scale-100 animate-pulse'
+                            : 'bg-teal-600/10 scale-100'
                         }`}
                 />
             </div>
@@ -391,12 +395,12 @@ const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentS
                 <div className="flex items-center gap-2 bg-stone-900/80 backdrop-blur-sm rounded-full px-4 py-2 border border-stone-800">
                     <span
                         className={`w-2 h-2 rounded-full ${agentState === 'speaking'
-                                ? 'bg-teal-400 animate-pulse'
-                                : agentState === 'thinking'
-                                    ? 'bg-amber-400 animate-pulse'
-                                    : agentState === 'listening'
-                                        ? 'bg-emerald-400'
-                                        : 'bg-stone-500'
+                            ? 'bg-teal-400 animate-pulse'
+                            : agentState === 'thinking'
+                                ? 'bg-amber-400 animate-pulse'
+                                : agentState === 'listening'
+                                    ? 'bg-emerald-400'
+                                    : 'bg-stone-500'
                             }`}
                     />
                     <span className="text-xs text-stone-400 font-medium uppercase tracking-wider">

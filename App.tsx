@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Settings, Phone, PhoneOff, Github, X, Save, User, Briefcase, ArrowRight, Mail, Sparkles } from 'lucide-react';
+import { Settings, Phone, PhoneOff, Github, X, Save, User, Briefcase, ArrowRight, Mail, Sparkles, Users } from 'lucide-react';
 import { DiYii } from "react-icons/di";
 import { useLiveKitAgent } from './hooks/useLiveKitAgent';
 import AudioVisualizer from './components/AudioVisualizer';
 import Transcript from './components/Transcript';
 import AvatarCanvas from './components/AvatarCanvas';
+import AvatarSelector from './components/AvatarSelector';
+import { DEFAULT_MODEL_ID } from './components/avatarModels';
 
 // LiveKit server URL - set via environment variable
 const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || '';
@@ -30,6 +32,10 @@ function App() {
 
     // Avatar mode state
     const [isAvatarMode, setIsAvatarMode] = useState(false);
+    const [isAvatarSelectorOpen, setIsAvatarSelectorOpen] = useState(false);
+    const [selectedModelId, setSelectedModelId] = useState(() => {
+        return localStorage.getItem('selectedAvatarId') || DEFAULT_MODEL_ID;
+    });
 
     // Language selection removed - WebRTC uses Deepgram only
 
@@ -280,14 +286,12 @@ function App() {
                     {status === 'connected' && (
                         <button
                             onClick={() => setIsAvatarMode(!isAvatarMode)}
-                            className={`p-2 rounded-full transition-colors group relative ${
-                                isAvatarMode ? 'bg-teal-500/20' : 'hover:bg-stone-800'
-                            }`}
+                            className={`p-2 rounded-full transition-colors group relative ${isAvatarMode ? 'bg-teal-500/20' : 'hover:bg-stone-800'
+                                }`}
                             title={isAvatarMode ? 'Switch to Transcript' : 'Switch to Avatar'}
                         >
-                            <Sparkles className={`transition-all duration-300 ${
-                                isAvatarMode ? 'text-teal-400 scale-110' : 'text-stone-400 group-hover:text-teal-400'
-                            }`} size={24} />
+                            <Sparkles className={`transition-all duration-300 ${isAvatarMode ? 'text-teal-400 scale-110' : 'text-stone-400 group-hover:text-teal-400'
+                                }`} size={24} />
                         </button>
                     )}
                     <button
@@ -406,6 +410,7 @@ function App() {
                         volume={currentVolume}
                         isConnected={status === 'connected'}
                         agentState={agentState}
+                        modelId={selectedModelId}
                     />
                     {/* Exit Avatar Mode Button */}
                     <button
@@ -415,6 +420,14 @@ function App() {
                     >
                         <X className="text-stone-400 group-hover:text-rose-400" size={24} />
                     </button>
+                    {/* Avatar Selector Button */}
+                    <button
+                        onClick={() => setIsAvatarSelectorOpen(true)}
+                        className="absolute top-6 left-6 z-50 p-3 rounded-full bg-stone-900/80 backdrop-blur-sm border border-stone-700 hover:bg-stone-800 transition-colors group"
+                        title="Change Avatar"
+                    >
+                        <Users className="text-stone-400 group-hover:text-teal-400" size={24} />
+                    </button>
                     {/* End Call Button in Avatar Mode */}
                     <button
                         onClick={toggleConnection}
@@ -423,6 +436,13 @@ function App() {
                     >
                         <PhoneOff size={24} />
                     </button>
+                    {/* Avatar Selector Modal */}
+                    <AvatarSelector
+                        currentModelId={selectedModelId}
+                        onSelectModel={setSelectedModelId}
+                        isOpen={isAvatarSelectorOpen}
+                        onClose={() => setIsAvatarSelectorOpen(false)}
+                    />
                 </div>
             )}
 

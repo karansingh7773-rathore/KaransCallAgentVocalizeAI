@@ -1,0 +1,56 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "长离.moc3",
+		"Textures": [
+			"长离.4096/texture_00.png",
+			"长离.4096/texture_01.png",
+			"长离.4096/texture_02.png",
+			"长离.4096/texture_03.png"
+		],
+		"Physics": "长离.physics3.json",
+		"DisplayInfo": "长离.cdi3.json",
+		"Expressions": [
+			{
+				"Name": "coat",
+				"File": "EXP3/外套穿脱.exp3.json"
+			},
+			{
+				"Name": "heart_eyes",
+				"File": "EXP3/爱心眼.exp3.json"
+			},
+			{
+				"Name": "angry",
+				"File": "EXP3/生气.exp3.json"
+			},
+			{
+				"Name": "white_eyes",
+				"File": "EXP3/白眼.exp3.json"
+			},
+			{
+				"Name": "eye_mask",
+				"File": "EXP3/眼罩.exp3.json"
+			},
+			{
+				"Name": "blush",
+				"File": "EXP3/脸红.exp3.json"
+			},
+			{
+				"Name": "dark_face",
+				"File": "EXP3/黑脸.exp3.json"
+			}
+		]
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": []
+		},
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": []
+		}
+	]
+}
