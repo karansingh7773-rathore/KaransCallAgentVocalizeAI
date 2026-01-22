@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Settings, Phone, PhoneOff, Github, X, Save, User, Briefcase, ArrowRight, Mail } from 'lucide-react';
+import { Settings, Phone, PhoneOff, Github, X, Save, User, Briefcase, ArrowRight, Mail, Sparkles } from 'lucide-react';
 import { DiYii } from "react-icons/di";
 import { useLiveKitAgent } from './hooks/useLiveKitAgent';
 import AudioVisualizer from './components/AudioVisualizer';
 import Transcript from './components/Transcript';
+import AvatarCanvas from './components/AvatarCanvas';
 
 // LiveKit server URL - set via environment variable
 const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || '';
@@ -26,6 +27,9 @@ function App() {
 
     // Email input popup state
     const [tempEmail, setTempEmail] = useState('');
+
+    // Avatar mode state
+    const [isAvatarMode, setIsAvatarMode] = useState(false);
 
     // Language selection removed - WebRTC uses Deepgram only
 
@@ -272,6 +276,20 @@ function App() {
                             {getStatusText()}
                         </div>
                     )}
+                    {/* Avatar Mode Toggle */}
+                    {status === 'connected' && (
+                        <button
+                            onClick={() => setIsAvatarMode(!isAvatarMode)}
+                            className={`p-2 rounded-full transition-colors group relative ${
+                                isAvatarMode ? 'bg-teal-500/20' : 'hover:bg-stone-800'
+                            }`}
+                            title={isAvatarMode ? 'Switch to Transcript' : 'Switch to Avatar'}
+                        >
+                            <Sparkles className={`transition-all duration-300 ${
+                                isAvatarMode ? 'text-teal-400 scale-110' : 'text-stone-400 group-hover:text-teal-400'
+                            }`} size={24} />
+                        </button>
+                    )}
                     <button
                         onClick={handleOpenSettings}
                         className="p-2 rounded-full hover:bg-stone-800 transition-colors group relative"
@@ -381,6 +399,33 @@ function App() {
 
     return (
         <>
+            {/* Full-Screen Avatar Mode - Above everything */}
+            {status === 'connected' && isAvatarMode && (
+                <div className="fixed inset-0 z-50">
+                    <AvatarCanvas
+                        volume={currentVolume}
+                        isConnected={status === 'connected'}
+                        agentState={agentState}
+                    />
+                    {/* Exit Avatar Mode Button */}
+                    <button
+                        onClick={() => setIsAvatarMode(false)}
+                        className="absolute top-6 right-6 z-50 p-3 rounded-full bg-stone-900/80 backdrop-blur-sm border border-stone-700 hover:bg-stone-800 transition-colors group"
+                        title="Exit Avatar Mode"
+                    >
+                        <X className="text-stone-400 group-hover:text-rose-400" size={24} />
+                    </button>
+                    {/* End Call Button in Avatar Mode */}
+                    <button
+                        onClick={toggleConnection}
+                        className="absolute bottom-8 right-8 z-50 p-4 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-900/30 transition-all hover:scale-105"
+                        title="End Call"
+                    >
+                        <PhoneOff size={24} />
+                    </button>
+                </div>
+            )}
+
             {/* Main Background UI - Blurred when modal is open */}
             <div className={`transition-all duration-700 ${isNameModalOpen ? 'blur-lg scale-95 opacity-40 pointer-events-none' : 'blur-0 scale-100 opacity-100'}`}>
                 {mainUIContent}
