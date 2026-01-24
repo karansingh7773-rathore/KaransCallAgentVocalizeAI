@@ -110,7 +110,9 @@ function App() {
         transcripts,
         currentTurn,
         currentVolume,
+        frequencyData,
         agentState,
+        currentAction,
         emailPopupOpen,
         submitEmailToAgent,
         closeEmailPopup,
@@ -411,6 +413,8 @@ function App() {
                         isConnected={status === 'connected'}
                         agentState={agentState}
                         modelId={selectedModelId}
+                        frequencyData={frequencyData}
+                        action={currentAction}
                     />
                     {/* Exit Avatar Mode Button */}
                     <button

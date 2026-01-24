@@ -19,6 +19,14 @@ interface UseLiveKitAgentProps {
   userName: string;
 }
 
+// FFT frequency data for lip sync
+interface FrequencyData {
+  low: number;   // 0-300Hz: O, U sounds (bass)
+  mid: number;   // 300-2000Hz: A, E sounds (vowels)
+  high: number;  // 2000-8000Hz: S, T, F sounds (consonants)
+  volume: number; // Overall volume
+}
+
 interface UseLiveKitAgentReturn {
   connect: () => Promise<void>;
   disconnect: () => void;
@@ -26,7 +34,9 @@ interface UseLiveKitAgentReturn {
   transcripts: Turn[];
   currentTurn: { input: string; output: string } | null;
   currentVolume: number;
+  frequencyData: FrequencyData;
   agentState: 'disconnected' | 'connecting' | 'listening' | 'thinking' | 'speaking';
+  currentAction: string | null; // NEW: Action command for avatar (Wave, Nod, Wink, WagTail)
   emailPopupOpen: boolean;
   submitEmailToAgent: (email: string) => void;
   closeEmailPopup: () => void;
@@ -46,7 +56,9 @@ export function useLiveKitAgent({
   const [transcripts, setTranscripts] = useState<Turn[]>([]);
   const [currentTurn, setCurrentTurn] = useState<{ input: string; output: string } | null>(null);
   const [currentVolume, setCurrentVolume] = useState<number>(0);
+  const [frequencyData, setFrequencyData] = useState<FrequencyData>({ low: 0, mid: 0, high: 0, volume: 0 });
   const [agentState, setAgentState] = useState<'disconnected' | 'connecting' | 'listening' | 'thinking' | 'speaking'>('disconnected');
+  const [currentAction, setCurrentAction] = useState<string | null>(null);
   const [emailPopupOpen, setEmailPopupOpen] = useState<boolean>(false);
   const [searchSources, setSearchSources] = useState<{ url: string; title: string }[]>([]);
 
@@ -95,15 +107,30 @@ export function useLiveKitAgent({
 
       const audioContext = audioContextRef.current;
       const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 128;
+      analyser.fftSize = 256; // More bins for better frequency resolution
       analyserRef.current = analyser;
 
       const mediaStream = new MediaStream([track.mediaStreamTrack]);
       const source = audioContext.createMediaStreamSource(mediaStream);
       source.connect(analyser);
 
+      // Calculate frequency bin ranges
+      // Sample rate is typically 48000Hz, with fftSize=256 we get 128 bins
+      // Each bin represents ~187.5Hz (48000 / 256)
+      const sampleRate = audioContext.sampleRate;
+      const binCount = analyser.frequencyBinCount; // 128 bins
+      const binSize = sampleRate / analyser.fftSize; // Hz per bin
+
+      // Frequency ranges for lip sync:
+      // Low (bass): 0-300Hz - O, U sounds
+      // Mid (vowels): 300-2000Hz - A, E sounds  
+      // High (consonants): 2000-8000Hz - S, T, F sounds
+      const lowEnd = Math.floor(300 / binSize);
+      const midEnd = Math.floor(2000 / binSize);
+      const highEnd = Math.min(Math.floor(8000 / binSize), binCount);
+
       let lastUpdate = 0;
-      const THROTTLE_MS = 66;
+      const THROTTLE_MS = 33; // 30fps for smoother lip sync
 
       const visualize = () => {
         if (!analyserRef.current) return;
@@ -115,11 +142,30 @@ export function useLiveKitAgent({
           const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
           analyserRef.current.getByteFrequencyData(dataArray);
 
-          let sum = 0;
-          for (let i = 0; i < dataArray.length; i++) {
-            sum += dataArray[i];
+          // Calculate frequency bands for lip sync
+          let lowSum = 0, midSum = 0, highSum = 0, totalSum = 0;
+
+          for (let i = 0; i < binCount; i++) {
+            const value = dataArray[i];
+            totalSum += value;
+
+            if (i < lowEnd) {
+              lowSum += value;
+            } else if (i < midEnd) {
+              midSum += value;
+            } else if (i < highEnd) {
+              highSum += value;
+            }
           }
-          setCurrentVolume(sum / dataArray.length);
+
+          // Normalize to 0-1 range
+          const low = lowEnd > 0 ? (lowSum / lowEnd) / 255 : 0;
+          const mid = (midEnd - lowEnd) > 0 ? (midSum / (midEnd - lowEnd)) / 255 : 0;
+          const high = (highEnd - midEnd) > 0 ? (highSum / (highEnd - midEnd)) / 255 : 0;
+          const volume = totalSum / binCount;
+
+          setCurrentVolume(volume);
+          setFrequencyData({ low, mid, high, volume: volume / 255 });
         }
 
         animationFrameRef.current = requestAnimationFrame(visualize);
@@ -181,7 +227,7 @@ export function useLiveKitAgent({
         }
       });
 
-      // Handle data messages from agent (e.g., email input popup request)
+      // Handle data messages from agent (e.g., email input popup request, actions)
       room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
         try {
           const message = JSON.parse(new TextDecoder().decode(payload));
@@ -194,10 +240,14 @@ export function useLiveKitAgent({
           } else if (message.type === 'search_sources') {
             console.log('Agent sent search sources:', message.sources);
             setSearchSources(message.sources || []);
-            // Play sound effect when sources appear
             const toolAudio = new Audio('/tool-use.mp3');
             toolAudio.play().catch(err => console.warn('Sources sound failed:', err));
-            // Sources will hide when user speaks again
+          } else if (message.type === 'action') {
+            // NEW: Handle avatar action commands (Wave, Nod, Wink, WagTail)
+            console.log('Agent action command:', message.action);
+            setCurrentAction(message.action);
+            // Clear action after 2 seconds (motion should have played)
+            setTimeout(() => setCurrentAction(null), 2000);
           }
         } catch (e) {
           // Ignore non-JSON messages
@@ -295,7 +345,9 @@ export function useLiveKitAgent({
     transcripts,
     currentTurn,
     currentVolume,
+    frequencyData,
     agentState,
+    currentAction,
     emailPopupOpen,
     submitEmailToAgent,
     closeEmailPopup: () => setEmailPopupOpen(false),

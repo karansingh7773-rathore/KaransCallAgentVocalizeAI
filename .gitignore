@@ -10,6 +10,12 @@ build/
 .env.local
 .env.*.local
 
+# Python Virtual Environment
+venv/
+.venv/
+env/
+.env/
+
 # IDE/Editor
 .vscode/
 .idea/

@@ -1,0 +1,107 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "简.moc3",
+		"Textures": [
+			"简.8192/texture_00.png"
+		],
+		"Physics": "简.physics3.json",
+		"DisplayInfo": "简.cdi3.json",
+		"Expressions": [
+			{
+				"Name": "rightHand",
+				"File": "右手.exp3.json"
+			},
+			{
+				"Name": "leftHand",
+				"File": "左手.exp3.json"
+			},
+			{
+				"Name": "starEyes",
+				"File": "星星眼.exp3.json"
+			},
+			{
+				"Name": "tears",
+				"File": "泪.exp3.json"
+			},
+			{
+				"Name": "heartEyes",
+				"File": "爱心眼.exp3.json"
+			},
+			{
+				"Name": "angry",
+				"File": "生气.exp3.json"
+			},
+			{
+				"Name": "whiteEyes",
+				"File": "白眼.exp3.json"
+			},
+			{
+				"Name": "blush",
+				"File": "脸红.exp3.json"
+			},
+			{
+				"Name": "darkFace",
+				"File": "脸黑.exp3.json"
+			},
+			{
+				"Name": "blood",
+				"File": "血.exp3.json"
+			}
+		],
+		"Motions": {
+			"Idle": [
+				{
+					"File": "Scene1.motion3.json",
+					"FadeInTime": 0.5,
+					"FadeOutTime": 0.5
+				}
+			],
+			"Wave": [
+				{
+					"File": "Wave.motion3.json",
+					"FadeInTime": 0.2,
+					"FadeOutTime": 0.3
+				}
+			],
+			"Nod": [
+				{
+					"File": "Nod.motion3.json",
+					"FadeInTime": 0.1,
+					"FadeOutTime": 0.2
+				}
+			],
+			"Wink": [
+				{
+					"File": "Wink.motion3.json",
+					"FadeInTime": 0.1,
+					"FadeOutTime": 0.2
+				}
+			],
+			"WagTail": [
+				{
+					"File": "WagTail.motion3.json",
+					"FadeInTime": 0.1,
+					"FadeOutTime": 0.2
+				}
+			]
+		}
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": [
+				"ParamMouthOpenY"
+			]
+		},
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": [
+				"ParamEyeLOpen",
+				"ParamEyeROpen"
+			]
+		}
+	]
+}

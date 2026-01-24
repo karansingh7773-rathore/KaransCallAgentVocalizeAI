@@ -74,6 +74,11 @@ logger = logging.getLogger("vocalize-agent")
 # ============================================================
 # 📊 SESSION LOGGING - Easy to spot in Railway logs
 # ============================================================
+
+
+# ============================================================
+# 📊 SESSION LOGGING - Easy to spot in Railway logs
+# ============================================================
 def log_session_start(room_name: str, user_name: str, participant_id: str, is_phone: bool = False):
     """Log a visually distinct session start banner."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -243,6 +248,8 @@ You are concise, friendly, and speak naturally like a human.
 Keep your responses brief and conversational - this is a voice call, not a text chat.
 NEVER use any markdown formatting like **bold**, *italic*, __, ##, bullets, or any special symbols - everything you say will be spoken aloud and displayed as-is.
 Be warm, personable, and helpful.
+
+
 
 WEB SEARCH CAPABILITY:
 - You have access to a search_web tool for real-time information.
@@ -597,6 +604,24 @@ class VocalizeAgent(Agent):
         if user_name:
             instructions = f"{instructions}\n\nThe user's name is {user_name}. Use their name occasionally to make the conversation feel personal."
         
+
+        # INJECT AVATAR GESTURE INSTRUCTIONS (Tricking the LLM to support gestures)
+        # This ensures gestures work even if the prompt comes from the frontend
+        gesture_instructions = """
+AVATAR GESTURES (USE THESE):
+You have an animated avatar. To perform a gesture, you MUST call the `perform_action` tool.
+Do NOT output tags like [Wave] in your speech. ALWAYS use the tool.
+
+Available actions:
+- 'wave' : Wave hello/goodbye
+- 'nod' : Nod in agreement  
+- 'wink' : Playful wink
+- 'wagtail' : Show excitement
+
+Example: To wave, call `perform_action(action='wave')` then say "Hello there!"
+"""
+        instructions = f"{instructions}\n{gesture_instructions}"
+        
         super().__init__(instructions=instructions)
         self.user_name = user_name
         self.is_phone_call = is_phone_call
@@ -907,6 +932,33 @@ class VocalizeAgent(Agent):
         except Exception as e:
             logger.error(f"Failed to request email input: {e}")
             return "I couldn't open the input. Please speak your email address."
+            
+    @function_tool
+    async def perform_action(self, ctx: RunContext, action: str):
+        """Perform an avatar gesture/action.
+        
+        Use this tool to make your avatar move. Call it BEFORE you speak the corresponding text.
+        
+        Args:
+            action: The action to perform. Must be one of: 'wave', 'nod', 'wink', 'wagtail'
+        """
+        valid_actions = {'wave', 'nod', 'wink', 'wagtail'}
+        action = action.lower()
+        
+        if action not in valid_actions:
+            return f"Action '{action}' is not supported. Supported actions: {', '.join(valid_actions)}"
+            
+        try:
+            job_ctx = get_job_context()
+            if job_ctx:
+                data = json.dumps({"type": "action", "action": action}).encode()
+                await job_ctx.room.local_participant.publish_data(data, reliable=True)
+                logger.info(f"Sent avatar action command: {action}")
+                return "Action performed."
+            return "Could not perform action (no room context)."
+        except Exception as e:
+            logger.error(f"Failed to perform action {action}: {e}")
+            return "Failed to perform action."
     
     @function_tool
     async def close_email_popup(self, ctx: RunContext, confirm: bool = True):

@@ -10,14 +10,31 @@ if (typeof window !== 'undefined') {
 // Import after PIXI is exposed
 import { Live2DModel, MotionPriority } from 'pixi-live2d-display/cubism4';
 
+// FFT frequency data for enhanced lip sync
+interface FrequencyData {
+    low: number;   // 0-300Hz: O, U sounds
+    mid: number;   // 300-2000Hz: A, E sounds
+    high: number;  // 2000-8000Hz: S, T, F sounds
+    volume: number;
+}
+
 interface AvatarCanvasProps {
     volume: number;
     isConnected: boolean;
     agentState: 'disconnected' | 'connecting' | 'listening' | 'thinking' | 'speaking';
-    modelId?: string; // Optional model ID - defaults to huohuo
+    modelId?: string;
+    frequencyData?: FrequencyData;
+    action?: string | null; // NEW: Action command (Wave, Nod, Wink, WagTail)
 }
 
-const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentState, modelId = DEFAULT_MODEL_ID }) => {
+const AvatarCanvas: React.FC<AvatarCanvasProps> = ({
+    volume,
+    isConnected,
+    agentState,
+    modelId = DEFAULT_MODEL_ID,
+    frequencyData,
+    action
+}) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const appRef = useRef<PIXI.Application | null>(null);
     const modelRef = useRef<any>(null);
@@ -229,6 +246,36 @@ const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentS
         }
     }, [agentState, modelLoaded]);
 
+    // NEW: Handle action commands (Wave, Nod, Wink, WagTail)
+    useEffect(() => {
+        if (!modelLoaded || !action) return;
+
+        const model = modelRef.current;
+        if (!model) return;
+
+        // Map action names to motion groups
+        const actionMotionMap: Record<string, string> = {
+            'wave': 'Wave',
+            'nod': 'Nod',
+            'wink': 'Wink',
+            'wagtail': 'WagTail',
+            'Wave': 'Wave',
+            'Nod': 'Nod',
+            'Wink': 'Wink',
+            'WagTail': 'WagTail',
+        };
+
+        const motionGroup = actionMotionMap[action];
+        if (motionGroup) {
+            try {
+                model.motion(motionGroup, 0, MotionPriority.FORCE);
+                console.log(`Playing action motion: ${motionGroup}`);
+            } catch (err) {
+                console.warn(`Could not play action motion ${motionGroup}:`, err);
+            }
+        }
+    }, [action, modelLoaded]);
+
     // Main animation loop with all enhancements
     useEffect(() => {
         if (!isConnected || !modelLoaded) return;
@@ -253,22 +300,42 @@ const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ volume, isConnected, agentS
                     coreModel.setParameterValueById('ParamBreath', breathValue);
                 }
 
-                // === 2. LIP-SYNC WITH MOUTH FORM ===
-                let targetVolume = 0;
+                // === 2. FFT-BASED LIP-SYNC (Wawa-style) ===
+                let targetMouthOpen = 0;
                 let targetMouthForm = 0;
 
                 if (agentState === 'speaking') {
-                    // Mouth opening based on volume
-                    targetVolume = Math.min(1, (volume / 70) * 1.3);
+                    if (frequencyData) {
+                        // Use FFT frequency bands for realistic mouth shapes
+                        const { low, mid, high } = frequencyData;
 
-                    // Vary mouth shape during speech for more natural look
-                    headSwayPhaseRef.current += deltaTime * 4;
-                    targetMouthForm = Math.sin(headSwayPhaseRef.current * 1.5) * 0.3;
+                        // Mouth opening: driven by low + mid frequencies
+                        // Low freqs (O, U): wide open, round mouth
+                        // Mid freqs (A, E): open but flatter
+                        targetMouthOpen = Math.min(1, (low * 1.2 + mid * 0.8));
+
+                        // Mouth form: -1 = pucker (O, U), +1 = smile (I, E)
+                        // Low frequencies → pucker (negative)
+                        // Mid/High frequencies → smile/spread (positive)
+                        targetMouthForm = (mid * 0.6 + high * 0.4) - (low * 0.5);
+                        targetMouthForm = Math.max(-1, Math.min(1, targetMouthForm));
+
+                        // Add subtle variation for consonants (high freq)
+                        if (high > 0.3) {
+                            // Quick mouth movements for S, T, F sounds
+                            targetMouthOpen *= (0.7 + high * 0.3);
+                        }
+                    } else {
+                        // Fallback to volume-based (legacy)
+                        targetMouthOpen = Math.min(1, (volume / 70) * 1.3);
+                        headSwayPhaseRef.current += deltaTime * 4;
+                        targetMouthForm = Math.sin(headSwayPhaseRef.current * 1.5) * 0.3;
+                    }
                 }
 
-                // Smooth volume transitions
-                const smoothing = 0.3;
-                smoothedVolumeRef.current += (targetVolume - smoothedVolumeRef.current) * smoothing;
+                // Smooth transitions for natural movement
+                const smoothing = 0.35; // Slightly faster for lip sync responsiveness
+                smoothedVolumeRef.current += (targetMouthOpen - smoothedVolumeRef.current) * smoothing;
 
                 if (coreModel.setParameterValueById) {
                     coreModel.setParameterValueById('ParamMouthOpenY', smoothedVolumeRef.current);

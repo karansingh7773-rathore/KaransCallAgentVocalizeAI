@@ -25,6 +25,14 @@ export const AVATAR_MODELS: AvatarModel[] = [
         thumbnail: '/nimsiha.png',
         description: 'Elegant design with expressions',
         hasMotions: false
+    },
+    {
+        id: 'demongirl',
+        name: 'Demon Girl',
+        path: '/models/DemonGirl/简.model3.json',
+        thumbnail: '/models/DemonGirl/简.png',
+        description: 'Demon-themed with special expressions',
+        hasMotions: true
     }
 ];
 
