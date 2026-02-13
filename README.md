@@ -21,6 +21,7 @@ A real-time AI voice agent with **animated Live2D avatars**, **SIP phone calling
 - **Silero VAD** — Accurate voice activity detection
 - **Live Transcription** — Real-time transcripts displayed in UI
 
+<img width="1919" height="915" alt="image" src="https://github.com/user-attachments/assets/9f29c25e-958c-4abf-b565-d75a5001a5f5" />
 
 ### 🎭 Live2D Animated Avatars
 - **Multiple Selectable Avatars** — Choose from 3 unique Live2D characters:
