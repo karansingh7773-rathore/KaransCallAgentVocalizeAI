@@ -44,6 +44,8 @@ A real-time AI voice agent with **animated Live2D avatars**, **SIP phone calling
 - **Phone-specific Persona** — Custom instructions for phone calls (configurable via env var)
 - **Sarvam AI for Phone** — Optimized Indian accent recognition for SIP callers
 
+  <img width="1901" height="893" alt="image" src="https://github.com/user-attachments/assets/cad24408-5814-49ef-b7a7-3fc9e7ab0edc" />
+
 ### 🔍 AI Tools
 - **Web Search** — Real-time search via Tavily (news, weather, stocks, sports)
 - **Webpage Reading** — Extract and summarize content from any URL
@@ -52,10 +54,14 @@ A real-time AI voice agent with **animated Live2D avatars**, **SIP phone calling
 - **Email Input Popup** — Agent triggers a frontend popup for email collection (no verbal ask)
 - **End Call** — Graceful call termination on user goodbye
 
+  <img width="1919" height="916" alt="image" src="https://github.com/user-attachments/assets/c00ca26d-7718-41e2-af37-588d502e7a0b" />
+
 ### 📊 Analytics & Logging
 - **Notion Conversation Logger** — Full transcripts auto-saved to a Notion database
 - **Google Sheets User Tracking** — Log every connecting user with timestamps
 - **Session Banners** — Visual start/end banners in Railway logs with duration tracking
+
+  <img width="1919" height="905" alt="image" src="https://github.com/user-attachments/assets/39cad635-c8c8-487b-9a9b-1df7e2090037" />
 
 ### 🎨 UI/UX
 - **Premium Dark Theme** — Stone/rose palette with Manrope + Satisfy fonts
