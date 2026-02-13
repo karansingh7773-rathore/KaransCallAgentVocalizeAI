@@ -1,3 +1,4 @@
+<img width="1919" height="908" alt="image" src="https://github.com/user-attachments/assets/1eb25c30-65a4-4dec-b676-d8c1a10199fc" />
 # Vocalize AI — Karan's Call Agent
 
 A real-time AI voice agent with **animated Live2D avatars**, **SIP phone calling**, **web search**, and **email capabilities** — built on **LiveKit Cloud**, **Groq LLM**, and **Deepgram / Sarvam AI** for speech processing.
@@ -19,6 +20,7 @@ A real-time AI voice agent with **animated Live2D avatars**, **SIP phone calling
 - **Noise Cancellation** — Built-in BVC for clean audio
 - **Silero VAD** — Accurate voice activity detection
 - **Live Transcription** — Real-time transcripts displayed in UI
+
 
 ### 🎭 Live2D Animated Avatars
 - **Multiple Selectable Avatars** — Choose from 3 unique Live2D characters:
